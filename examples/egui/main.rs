@@ -132,7 +132,7 @@ async fn init_app(app_ctx: &mut AppCtx) -> impl FnMut(&mut AppCtx, &AppEvent) {
         app_ctx.request = Some(output.repaint_delay);
 
         /*frame_counter.add();
-        if let Some(counted) = frame_counter.count() { log_warn_dbg!(counted) }*/
+        if let Some(counted) = frame_counter.count() { log_warn!(counted) }*/
 
       },
 

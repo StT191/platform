@@ -1,5 +1,5 @@
 
-use ::platform::winit::{
+use platform::winit::{
   window::WindowAttributes,
   event::{WindowEvent, KeyEvent, ElementState},
   keyboard::{PhysicalKey, KeyCode},
@@ -20,7 +20,7 @@ async fn init_app(ctx: &mut AppCtx) -> impl FnMut(&mut AppCtx, &AppEvent) {
 
   let (gx, mut target) = Wgx::new_with_target(window.clone(), features!(), limits!(), window.inner_size(), 4, None).await.unwrap();
 
-  log_warn_dbg!(gx.adapter.get_info());
+  log_warn!(gx.adapter.get_info());
 
   let shader = gx.load_wgsl(wgsl_modules::inline!("$shader" <= {
     @vertex
@@ -68,7 +68,7 @@ async fn init_app(ctx: &mut AppCtx) -> impl FnMut(&mut AppCtx, &AppEvent) {
 
       })).unwrap_or_else(|err| log_err!(err));
 
-      log_warn_dbg!(then.elapsed());
+      log_warn!(then.elapsed());
     }
 
     _ => {},

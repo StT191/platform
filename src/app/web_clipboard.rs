@@ -42,7 +42,7 @@ impl PasteListener {
         if let Some(transfer) = evt.clipboard_data() {
           clipboard_content.replace(
             transfer.get_data("text")
-            .map_err(|err| log_err_dbg!(err)).ok()
+            .map_err(|err| log_err!(err)).ok()
           );
         }
         if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardPaste { window_id }) {
@@ -55,7 +55,7 @@ impl PasteListener {
         if let Some(transfer) = evt.clipboard_data() {
           clipboard_content.replace(
             transfer.get_data("text")
-            .map_err(|err| log_err_dbg!(err)).ok()
+            .map_err(|err| log_err!(err)).ok()
           );
         }
       })
@@ -156,7 +156,7 @@ impl WebClipboard {
           content.replace(
             match JsFuture::from(promise).await {
               Ok(res) => res.as_string(),
-              Err(err) => { log_err_dbg!(err); None },
+              Err(err) => { log_err!(err); None },
             }
           );
           if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardFetch { window_id }) {
@@ -169,7 +169,7 @@ impl WebClipboard {
           content.replace(
             match JsFuture::from(promise).await {
               Ok(res) => res.as_string(),
-              Err(err) => { log_err_dbg!(err); None },
+              Err(err) => { log_err!(err); None },
             }
           );
         });

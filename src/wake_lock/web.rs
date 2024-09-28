@@ -1,6 +1,6 @@
 
 use std::{rc::Rc, cell::RefCell};
-use crate::error::*;
+use anyhow::{Result as Res, Context, bail};
 use wasm_bindgen::{JsValue};
 use wasm_bindgen_futures::{JsFuture};
 use web_sys::{WakeLock as WebWakeLock, WakeLockType, WakeLockSentinel};
@@ -13,10 +13,10 @@ pub struct WakeLock {
 impl WakeLock {
 
     pub fn new() -> Res<Self> {
-        let window = web_sys::window().ok_or("couldn't get web_sys::Window")?;
+        let window = web_sys::window().context("couldn't get web_sys::Window")?;
 
         if !JsValue::from("wakeLock").js_in(&window.navigator()) {
-            return Err("navigator.wakeLock is not supported".to_string());
+            bail!("navigator.wakeLock is not supported");
         }
 
         Ok(Self {

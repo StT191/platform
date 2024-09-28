@@ -1,6 +1,6 @@
 [package]
 name = "platform"
-version = "0.4.7"
+version = "0.4.8"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -32,9 +32,10 @@ web_clipboard = ["web-sys/Clipboard", "web-sys/ClipboardEvent", "web-sys/DataTra
 [dependencies]
 winit = "0.30"
 log = "0"
+anyhow = "1"
 web-time = "1"
 take_mut = "0.2"
-wgx = { version = "0.22.0", tag = "v0.22.0", git = "https://github.com/StT191/wgx", default-features = false, optional = true }
+wgx = { version = "0.22.1", tag = "v0.22.1", git = "https://github.com/StT191/wgx", default-features = false, optional = true }
 
 getrandom = { version = "0.2", features = ["js"], optional = true }
 fastrand = { version = "2", default-features = false, optional = true }
@@ -67,7 +68,7 @@ egui-winit = { version = "0.29", default-features = false, features = ["links"],
 
 
 [dev-dependencies]
-wgx = { version = "0.22.0", tag = "v0.22.0", git = "https://github.com/StT191/wgx", features = ["default"] }
+wgx = { version = "0.22.1", tag = "v0.22.1", git = "https://github.com/StT191/wgx", features = ["default"] }
 
 # egui_extras = { version = "0.29", features = ["image"] } # with features
 # image = { version = "0.24", default-features = false, features = ["png"] }

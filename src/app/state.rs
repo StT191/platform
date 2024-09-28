@@ -1,7 +1,6 @@
 
 use winit::{window::WindowId, event::WindowEvent, event_loop::ActiveEventLoop};
-
-use crate::{*, error::Res};
+use crate::{*};
 
 #[cfg(feature = "frame_timer")]
 use crate::time::*;
@@ -140,7 +139,7 @@ impl<App: AppHandler> AppState<App> {
     }
 
     #[cfg(feature = "auto_wake_lock")]
-    fn wake_lock(wake_lock: &mut Option<WakeLock>, action: impl FnOnce(&mut WakeLock) -> Res<()>) {
+    fn wake_lock(wake_lock: &mut Option<WakeLock>, action: impl FnOnce(&mut WakeLock) -> anyhow::Result<()>) {
       if let Some(wake_lock) = wake_lock.as_mut() {
         action(wake_lock).unwrap_or_else(|err| log_warn!(err));
       }

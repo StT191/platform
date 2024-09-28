@@ -140,7 +140,7 @@ mod egui_ctx {
   use crate::{time::Duration, AppCtx, AppEvent};
 
   #[cfg(all(feature = "web_clipboard", target_family="wasm"))]
-  use crate::{web_clipboard::WebClipboard, log_warn_dbg};
+  use crate::{web_clipboard::WebClipboard, log_warn};
 
   use egui::{Context, ClippedPrimitive, TexturesDelta, ViewportCommand, ViewportInfo, ViewportId};
   use egui_winit::{State, update_viewport_info, process_viewport_commands};
@@ -188,7 +188,7 @@ mod egui_ctx {
         state.set_clipboard_text("DUMMY_CONTENT".to_string());
 
         let web_clipboard = WebClipboard::connect(app_ctx, true);
-        log_warn_dbg!(web_clipboard);
+        log_warn!(web_clipboard);
 
         Self { state, screen_dsc, context, web_clipboard }
       }

@@ -2,8 +2,8 @@
 // re-exports
 pub use winit;
 pub use web_time as time;
-
 pub use log::{self, Level as LogLevel};
+pub use anyhow;
 
 #[cfg(not(target_family="wasm"))]
 pub use pollster;
@@ -12,7 +12,7 @@ pub use pollster;
 mod platform;
 pub use platform::*;
 
-pub mod error;
+mod log_helper;
 
 mod app;
 pub use app::*;
