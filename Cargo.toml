@@ -1,6 +1,6 @@
 [package]
 name = "platform"
-version = "0.4.8"
+version = "1.0.0"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -13,19 +13,12 @@ name = "platform"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
 
 
-# [patch."https://github.com/StT191/wgx"]
-# wgx = { path = "../wgx" }
-
-
 [features]
 frame_timer = []
 auto_wake_lock = ["wake_lock"]
 wake_lock = ["dep:nosleep", "web-sys/Navigator", "web-sys/WakeLock", "web-sys/WakeLockType", "web-sys/WakeLockSentinel"]
-wgx = ["dep:wgx"]
 rng = ["dep:getrandom", "dep:fastrand"]
 icon_loader = ["dep:icon-loader", "dep:resvg"]
-epaint = ["wgx", "dep:epaint", "dep:egui-wgpu"]
-egui = ["epaint", "dep:egui", "dep:egui-winit", "dep:egui_extras"]
 web_clipboard = ["web-sys/Clipboard", "web-sys/ClipboardEvent", "web-sys/DataTransfer"]
 
 
@@ -35,26 +28,21 @@ log = "0"
 anyhow = "1"
 web-time = "1"
 take_mut = "0.2"
-wgx = { version = "0.22.1", tag = "v0.22.1", git = "https://github.com/StT191/wgx", default-features = false, optional = true }
 
 getrandom = { version = "0.2", features = ["js"], optional = true }
 fastrand = { version = "2", default-features = false, optional = true }
-
-epaint = { version = "0.29", optional = true }
-egui-wgpu = { version = "0.29", optional = true }
-egui = { version = "0.29", optional = true }
-egui_extras = { version = "0.29", optional = true } # without features
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
 icon-loader = { version = "0.4", optional = true }
 resvg = { version = "^0.43", optional = true }
 
+
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 pollster = "0.3"
 simple_logger = "5"
+
 nosleep = { version = "0.2", optional = true }
-egui-winit = { version = "0.29", optional = true }
 
 
 [target.'cfg(target_family = "wasm")'.dependencies]
@@ -64,16 +52,3 @@ web-sys = { version = "0.3" }
 js-sys = { version = "0.3" }
 console_error_panic_hook = "0.1"
 console_log = "1"
-egui-winit = { version = "0.29", default-features = false, features = ["links"], optional = true }
-
-
-[dev-dependencies]
-wgx = { version = "0.22.1", tag = "v0.22.1", git = "https://github.com/StT191/wgx", features = ["default"] }
-
-# egui_extras = { version = "0.29", features = ["image"] } # with features
-# image = { version = "0.24", default-features = false, features = ["png"] }
-
-
-[target.'cfg(target_family = "wasm")'.dev-dependencies]
-# wgpu = { version = "22", default-features = false, features = ["webgpu", "webgl"] }
-wgpu = { version = "22", default-features = false, features = ["webgl"] }
