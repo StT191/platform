@@ -8,26 +8,37 @@ pub use anyhow;
 #[cfg(not(target_family="wasm"))]
 pub use pollster;
 
-// mods
-mod platform;
-pub use platform::*;
+#[cfg(all(feature="directories", not(target_family="wasm")))]
+pub use robius_directories as directories;
 
-mod log_helper;
+// mods
+mod platform_winit;
+pub use platform_winit::*;
+
+mod future;
+pub use future::*;
+
+mod conditional_execution;
+pub use conditional_execution::*;
 
 mod app;
 pub use app::*;
 
+#[cfg(feature="touches")]
+pub mod touches;
+
+mod log_helper;
+
 pub mod timer;
 
-// rng
-#[cfg(feature = "rng")]
+#[cfg(feature="storage")]
+pub mod storage;
+
+#[cfg(feature="rng")]
 pub mod rng;
 
-// icon loader
-#[cfg(feature = "icon_loader")]
-#[cfg(target_os = "linux")]
+#[cfg(all(feature="icon_loader", target_os="linux"))]
 pub mod icon_loader;
 
-// wake_lock
-#[cfg(feature = "wake_lock")]
+#[cfg(feature="wake_lock")]
 pub mod wake_lock;

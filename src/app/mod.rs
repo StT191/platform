@@ -1,7 +1,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use winit::event::WindowEvent;
+use winit::event::{WindowEvent, DeviceId, DeviceEvent};
 use crate::*;
 
 // mods
@@ -31,6 +31,7 @@ pub enum AppEvent {
   Resumed,
   Suspended,
   WindowEvent(WindowEvent),
+  DeviceEvent{device_id: DeviceId, event: DeviceEvent},
   #[cfg(all(feature = "web_clipboard", target_family="wasm"))] ClipboardFetch,
   #[cfg(all(feature = "web_clipboard", target_family="wasm"))] ClipboardPaste,
 }
