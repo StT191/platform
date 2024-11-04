@@ -1,5 +1,5 @@
 
-use winit::{window::{WindowAttributes, Window, WindowId}, event::{WindowEvent, StartCause}, event_loop::ActiveEventLoop};
+use winit::{window::{WindowAttributes, Window, WindowId}, event::*, event_loop::ActiveEventLoop};
 use winit::application::ApplicationHandler;
 use std::sync::mpsc::{Receiver, sync_channel};
 
@@ -161,6 +161,10 @@ impl<App: AppHandler> ApplicationHandler<PlatformEventExt> for AppMount<App> {
 
   fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
     self.event(PlatformEvent::WindowEvent { window_id, event }, event_loop);
+  }
+
+  fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+    self.event(PlatformEvent::DeviceEvent { device_id, event }, event_loop);
   }
 
 }
