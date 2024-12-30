@@ -27,8 +27,6 @@ pub use app::*;
 #[cfg(feature="touches")]
 pub mod touches;
 
-mod log_helper;
-
 pub mod timer;
 
 #[cfg(feature="storage")]

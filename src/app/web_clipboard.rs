@@ -26,7 +26,7 @@ impl ClipboardHandle {
 
       Ok(Self { clipboard, readable, writeable })
     })
-    ().map_err(|err: &str| log_warn!(err)).ok()
+    ().map_err(|m: &str| log::warn!("{m:?}")).ok()
   }
 }
 
@@ -40,23 +40,15 @@ impl PasteListener {
     let closure: Box<dyn Fn(ClipboardEvent)> = if let Some((event_loop_proxy, window_id)) = event_proxy {
       Box::new(move |evt| {
         if let Some(transfer) = evt.clipboard_data() {
-          clipboard_content.replace(
-            transfer.get_data("text")
-            .map_err(|err| log_err!(err)).ok()
-          );
+          clipboard_content.replace(transfer.get_data("text").map_err(|m| log::error!("{m:?}")).ok());
         }
-        if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardPaste { window_id }) {
-          log_err!(err);
-        }
+        event_loop_proxy.send_event(PlatformEventExt::ClipboardPaste {window_id}).unwrap_or_else(|m| log::error!("{m:?}"));
       })
     }
     else {
       Box::new(move |evt| {
         if let Some(transfer) = evt.clipboard_data() {
-          clipboard_content.replace(
-            transfer.get_data("text")
-            .map_err(|err| log_err!(err)).ok()
-          );
+          clipboard_content.replace(transfer.get_data("text").map_err(|m| log::error!("{m:?}")).ok());
         }
       })
     };
@@ -82,18 +74,12 @@ impl PasteListener {
 
       Ok(())
     })
-    ().unwrap_or_else(|err: &str| log_err!(err));
+    ().unwrap_or_else(|m: &str| log::error!("{m:?}"));
   }
 
   fn attached(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(PlatformEventLoopProxy, WindowId)>) -> Option<Self> {
     let listener = Self::new(clipboard_content, event_proxy);
-    match listener.attach() {
-      Ok(()) => Some(listener),
-      Err(err) => {
-        log_err!(err);
-        None
-      }
-    }
+    listener.attach().map(|()| listener).map_err(|m| log::error!("{m:?}")).ok()
   }
 }
 
@@ -154,23 +140,19 @@ impl WebClipboard {
 
         wasm_bindgen_futures::spawn_local(async move {
           content.replace(
-            match JsFuture::from(promise).await {
-              Ok(res) => res.as_string(),
-              Err(err) => { log_err!(err); None },
-            }
+            JsFuture::from(promise).await
+            .map_err(|m| log::error!("{m:?}")).ok()
+            .and_then(|res| res.as_string())
           );
-          if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardFetch { window_id }) {
-            log_err!(err);
-          }
+          event_loop_proxy.send_event(PlatformEventExt::ClipboardFetch {window_id}).unwrap_or_else(|m| log::error!("{m:?}"));
         });
       }
       else {
         wasm_bindgen_futures::spawn_local(async move {
           content.replace(
-            match JsFuture::from(promise).await {
-              Ok(res) => res.as_string(),
-              Err(err) => { log_err!(err); None },
-            }
+            JsFuture::from(promise).await
+            .map_err(|m| log::error!("{m:?}")).ok()
+            .and_then(|res| res.as_string())
           );
         });
       }

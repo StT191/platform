@@ -19,11 +19,12 @@ pub mod web_clipboard;
 
 
 // exports
-#[cfg(feature = "frame_timer")]
+#[cfg(feature = "redraw_timer")]
 use crate::time::Duration;
 
-#[cfg(feature = "frame_timer")]
-pub const STD_DURATION: Duration = Duration::from_nanos(1_000_000_000/60);
+#[cfg(feature = "redraw_timer")] pub const STD_FRAME_TIME: Duration = Duration::from_nanos(10u64.pow(9)/60);
+#[cfg(feature = "redraw_timer")] pub const STD_WAIT_TIME: Duration = Duration::from_millis(4);
+#[cfg(feature = "redraw_timer")] pub const STD_FRAME_TIMEOUT: Duration = STD_FRAME_TIME.saturating_sub(STD_WAIT_TIME);
 
 
 #[derive(Debug, Clone)]
