@@ -26,7 +26,7 @@ impl ClipboardHandle {
 
       Ok(Self { clipboard, readable, writeable })
     })
-    ().map_err(|err: &str| log_warn!(err)).ok()
+    ().map_err(|m: &str| log::warn!("{m:?}")).ok()
   }
 }
 
@@ -35,28 +35,20 @@ struct PasteListener { listener: Function }
 
 impl PasteListener {
 
-  fn new(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(PlatformEventLoopProxy, WindowId)>) -> Self {
+  fn new(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(AppEventLoopProxy, WindowId)>) -> Self {
 
     let closure: Box<dyn Fn(ClipboardEvent)> = if let Some((event_loop_proxy, window_id)) = event_proxy {
       Box::new(move |evt| {
         if let Some(transfer) = evt.clipboard_data() {
-          clipboard_content.replace(
-            transfer.get_data("text")
-            .map_err(|err| log_err!(err)).ok()
-          );
+          clipboard_content.replace(transfer.get_data("text").map_err(|m| log::error!("{m:?}")).ok());
         }
-        if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardPaste { window_id }) {
-          log_err!(err);
-        }
+        event_loop_proxy.send_event(AppEventExt::ClipboardPaste {window_id}).unwrap_or_else(|m| log::error!("{m:?}"));
       })
     }
     else {
       Box::new(move |evt| {
         if let Some(transfer) = evt.clipboard_data() {
-          clipboard_content.replace(
-            transfer.get_data("text")
-            .map_err(|err| log_err!(err)).ok()
-          );
+          clipboard_content.replace(transfer.get_data("text").map_err(|m| log::error!("{m:?}")).ok());
         }
       })
     };
@@ -82,18 +74,12 @@ impl PasteListener {
 
       Ok(())
     })
-    ().unwrap_or_else(|err: &str| log_err!(err));
+    ().unwrap_or_else(|m: &str| log::error!("{m:?}"));
   }
 
-  fn attached(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(PlatformEventLoopProxy, WindowId)>) -> Option<Self> {
+  fn attached(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(AppEventLoopProxy, WindowId)>) -> Option<Self> {
     let listener = Self::new(clipboard_content, event_proxy);
-    match listener.attach() {
-      Ok(()) => Some(listener),
-      Err(err) => {
-        log_err!(err);
-        None
-      }
-    }
+    listener.attach().map(|()| listener).map_err(|m| log::error!("{m:?}")).ok()
   }
 }
 
@@ -104,7 +90,7 @@ pub struct WebClipboard {
   content: Rc<RefCell<Option<String>>>,
   handle: Option<ClipboardHandle>,
   paste_listener: Option<PasteListener>,
-  event_proxy: Option<(PlatformEventLoopProxy, WindowId)>,
+  event_proxy: Option<(AppEventLoopProxy, WindowId)>,
 }
 
 impl WebClipboard {
@@ -112,7 +98,7 @@ impl WebClipboard {
   pub fn connect(app_ctx: &AppCtx, attach_listener: bool) -> Self {
 
     let window_id = app_ctx.window().id();
-    let event_loop_proxy = app_ctx.event_loop_proxy().clone();
+    let event_loop_proxy = app_ctx.event_loop_proxy.clone();
 
     let content = RefCell::new(None).into();
 
@@ -154,23 +140,19 @@ impl WebClipboard {
 
         wasm_bindgen_futures::spawn_local(async move {
           content.replace(
-            match JsFuture::from(promise).await {
-              Ok(res) => res.as_string(),
-              Err(err) => { log_err!(err); None },
-            }
+            JsFuture::from(promise).await
+            .map_err(|m| log::error!("{m:?}")).ok()
+            .and_then(|res| res.as_string())
           );
-          if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardFetch { window_id }) {
-            log_err!(err);
-          }
+          event_loop_proxy.send_event(AppEventExt::ClipboardFetch {window_id}).unwrap_or_else(|m| log::error!("{m:?}"));
         });
       }
       else {
         wasm_bindgen_futures::spawn_local(async move {
           content.replace(
-            match JsFuture::from(promise).await {
-              Ok(res) => res.as_string(),
-              Err(err) => { log_err!(err); None },
-            }
+            JsFuture::from(promise).await
+            .map_err(|m| log::error!("{m:?}")).ok()
+            .and_then(|res| res.as_string())
           );
         });
       }

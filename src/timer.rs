@@ -1,5 +1,6 @@
 
 use crate::time::{Instant, Duration};
+use std::cmp::Ordering;
 
 
 #[derive(Debug, Clone)]
@@ -18,29 +19,26 @@ impl NormInterval {
         Self::new(Duration::from_secs_f64(duration_secs))
     }
 
-    pub fn elapsed(&self) -> f64 {
-        let now = Instant::now();
-        if now >= self.instant {
-            (now - self.instant).as_secs_f64() / self.duration.as_secs_f64()
+    pub fn elapsed(&self, instant: Instant) -> f64 {
+        if instant >= self.instant {
+            (instant - self.instant).as_secs_f64() / self.duration.as_secs_f64()
         } else {
-            -((self.instant - now).as_secs_f64() / self.duration.as_secs_f64())
+            -((self.instant - instant).as_secs_f64() / self.duration.as_secs_f64())
         }
     }
 
     pub fn advance_by(&mut self, times: f64) {
-        if let Some(instant) = {
-            if times.is_sign_positive() {
-                self.instant.checked_add(self.duration.mul_f64(times))
-            } else {
-                self.instant.checked_sub(self.duration.mul_f64(-times))
-            }
+        if let Some(instant) = match times.partial_cmp(&0.0) {
+            Some(Ordering::Greater) => self.instant.checked_add(self.duration.mul_f64(times)),
+            Some(Ordering::Less) => self.instant.checked_add(self.duration.mul_f64(-times)),
+            _ => None,
         } {
-            self.instant = instant
+            self.instant = instant;
         }
     }
 
-    pub fn advance_by_full_elapsed(&mut self) -> f64 {
-        let elapsed = self.elapsed();
+    pub fn advance_by_full_elapsed(&mut self, instant: Instant) -> f64 {
+        let elapsed = self.elapsed(instant);
         if !(0.0..1.0).contains(&elapsed) {
             self.advance_by(elapsed.floor());
         }
@@ -66,36 +64,33 @@ impl StepInterval {
         Self::new(Duration::from_secs_f64(duration_secs))
     }
 
-    pub fn elapsed(&self) -> i64 {
-        let now = Instant::now();
-        if now >= self.next {
-            ((now - self.next).as_nanos() / self.duration.as_nanos()) as i64 + 1
+    pub fn elapsed(&self, instant: Instant) -> i64 {
+        if instant >= self.next {
+            ((instant - self.next).as_nanos() / self.duration.as_nanos()) as i64 + 1
         } else {
-            -(((self.next - now).as_nanos() / self.duration.as_nanos()) as i64)
+            -(((self.next - instant).as_nanos() / self.duration.as_nanos()) as i64)
         }
     }
 
     pub fn step_by(&mut self, times: i64) {
-        if let Some(instant) = {
-            if times.is_positive() {
-                self.next.checked_add(self.duration.mul_f64(times as f64))
-            } else {
-                self.next.checked_sub(self.duration.mul_f64(-times as f64))
-            }
+        if let Some(instant) = match times.partial_cmp(&0) {
+            Some(Ordering::Greater) => self.next.checked_add(self.duration.mul_f64(times as f64)),
+            Some(Ordering::Less) => self.next.checked_add(self.duration.mul_f64(-times as f64)),
+            _ => None,
         } {
-            self.next = instant
+            self.next = instant;
         }
     }
 
-    pub fn step_if_elapsed(&mut self) -> i64 {
-        let elapsed = self.elapsed();
+    pub fn step_if_elapsed(&mut self, instant: Instant) -> i64 {
+        let elapsed = self.elapsed(instant);
         if elapsed >= 1 { self.step_by(elapsed) }
         elapsed
     }
 
-    pub fn step_next(&mut self) -> i64 {
-        let elapsed = self.elapsed();
-        // step so that now < next <= now + elapsed.frac
+    pub fn step_next(&mut self, instant: Instant) -> i64 {
+        let elapsed = self.elapsed(instant);
+        // step so that now < next <= instant + elapsed.frac
         self.step_by(if elapsed >= 1 { elapsed } else { elapsed - 1 });
         elapsed
     }
@@ -130,7 +125,7 @@ impl IntervalCounter {
     }
 
     pub fn count(&mut self) -> Option<IntervalCount> {
-        if self.interval.step_if_elapsed() >= 1 {
+        if self.interval.step_if_elapsed(Instant::now()) >= 1 {
 
             let counted = IntervalCount {
                 times_per_sec: self.count as f64 / self.interval.duration.as_secs_f64() ,

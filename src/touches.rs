@@ -83,9 +83,11 @@ pub struct Touches<
 
 impl<T: TouchExt + 'static, const SHRINK_TO:usize, const MAX:usize> Touches<T, SHRINK_TO, MAX> {
 
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self { Self { vec: Vec::new() } }
 
     pub fn len(&self) -> usize { self.vec.len() }
+    pub fn is_empty(&self) -> bool { self.vec.is_empty() }
 
     pub fn ended(&self) -> usize { self.iter().filter(|reg| reg.ended).count() }
 
