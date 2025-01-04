@@ -1,5 +1,5 @@
 
-use platform::winit::{window::{WindowBuilder}, event::{WindowEvent}};
+use platform::winit::{window::{WindowAttributes}, event::{WindowEvent}};
 use platform::{*, time::*, egui::*};
 use wgx::{*};
 
@@ -9,7 +9,7 @@ mod ui;
 
 main_app_closure! {
   LogLevel::Warn,
-  WindowBuilder::new().with_title("WgFx"),
+  WindowAttributes::default().with_title("WgFx"),
   init_app,
 }
 
@@ -132,7 +132,7 @@ async fn init_app(app_ctx: &mut AppCtx) -> impl FnMut(&mut AppCtx, &AppEvent) {
         app_ctx.request = Some(output.repaint_delay);
 
         /*frame_counter.add();
-        if let Some(counted) = frame_counter.count() { log::warn!("{:?}", counted) }*/
+        if let Some(counted) = frame_counter.count() { log_warn_dbg!(counted) }*/
 
       },
 

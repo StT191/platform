@@ -15,7 +15,7 @@ pub trait ScreenDescriptorExtension {
 
 
 pub fn renderer(gx: &impl WgxDevice, target: &impl RenderTarget) -> Renderer {
-  Renderer::new(gx.device(), target.view_format(), target.depth_testing(), target.msaa())
+  Renderer::new(gx.device(), target.view_format(), target.depth_testing(), target.msaa(), false)
 }
 
 
@@ -85,7 +85,7 @@ mod epaint_ctx {
         self.screen_dsc = screen_dsc;
       }
       let max_texture_side = max_texture_side.unwrap_or(self.fonts.max_texture_side());
-      self.fonts.begin_frame(self.screen_dsc.pixels_per_point, max_texture_side);
+      self.fonts.begin_pass(self.screen_dsc.pixels_per_point, max_texture_side);
     }
 
     pub fn clip_shapes(&self, shapes: impl IntoIterator<Item=Shape>, clip_rect: Option<Rect>) -> impl Iterator<Item=ClippedShape> {
@@ -116,7 +116,7 @@ mod epaint_ctx {
     }
 
     pub fn render<'a>(&'a self,
-      renderer: &'a Renderer, rpass: &mut RenderPass<'a>, clipped_primitives: &'a [ClippedPrimitive],
+      renderer: &'a Renderer, rpass: &mut RenderPass<'static>, clipped_primitives: &'a [ClippedPrimitive],
     ) {
       renderer.render(rpass, clipped_primitives, &self.screen_dsc);
     }
@@ -140,7 +140,7 @@ mod egui_ctx {
   use crate::{time::Duration, AppCtx, AppEvent};
 
   #[cfg(all(feature = "web_clipboard", target_family="wasm"))]
-  use crate::web_clipboard::WebClipboard;
+  use crate::{web_clipboard::WebClipboard, log_warn_dbg};
 
   use egui::{Context, ClippedPrimitive, TexturesDelta, ViewportCommand, ViewportInfo, ViewportId};
   use egui_winit::{State, update_viewport_info, process_viewport_commands};
@@ -171,9 +171,13 @@ mod egui_ctx {
       // install image loaders, need to be added via features in egui_extras
       egui_extras::install_image_loaders(&context);
 
-      #[allow(unused_mut)]
-      let mut state = State::new(context.clone(), ViewportId::ROOT, app_ctx.window(), None, None);
       let screen_dsc = ScreenDescriptor::from_window(app_ctx.window());
+
+      #[allow(unused_mut)]
+      let mut state = State::new(
+        context.clone(), ViewportId::ROOT, app_ctx.window(),
+        Some(screen_dsc.pixels_per_point), None /* theme */, None /* max_texture_side */,
+      );
 
       #[cfg(not(all(feature = "web_clipboard", target_family="wasm")))] {
         Self { state, screen_dsc, context }
@@ -184,7 +188,7 @@ mod egui_ctx {
         state.set_clipboard_text("DUMMY_CONTENT".to_string());
 
         let web_clipboard = WebClipboard::connect(app_ctx, true);
-        log::warn!("{web_clipboard:?}");
+        log_warn_dbg!(web_clipboard);
 
         Self { state, screen_dsc, context, web_clipboard }
       }
@@ -231,7 +235,7 @@ mod egui_ctx {
       }
     }
 
-    pub fn run(&mut self, app_ctx: &AppCtx, ui_fn: impl FnOnce(&Context)) -> FrameOutput {
+    pub fn run(&mut self, app_ctx: &AppCtx, ui_fn: impl FnMut(&Context)) -> FrameOutput {
 
       let mut input = self.state.take_egui_input(app_ctx.window());
 
@@ -279,7 +283,7 @@ mod egui_ctx {
       prepare_renderer(renderer, gx, encoder, &self.textures_delta, &self.clipped_primitives, &self.screen_dsc);
     }
 
-    pub fn render<'a>(&'a self, renderer: &'a Renderer, rpass: &mut RenderPass<'a>) {
+    pub fn render<'a>(&'a self, renderer: &'a Renderer, rpass: &mut RenderPass<'static>) {
       renderer.render(rpass, &self.clipped_primitives, &self.screen_dsc);
     }
   }

@@ -2,7 +2,7 @@
 use crate::error::*;
 use std::{sync::Arc, path::{Path, PathBuf}};
 use ::icon_loader::{IconLoader, ThemeNameProvider::{GTK, KDE}, SearchPaths, Icon};
-use resvg::{Tree, usvg::{Tree as UsvgTree, Options, TreeParsing}, tiny_skia::{Pixmap, Transform, PixmapPaint}};
+use resvg::{render, usvg::{Tree, Options}, tiny_skia::{Pixmap, Transform, PixmapPaint}};
 
 
 pub fn find_icon(name: &str) -> Res<Arc<Icon>> {
@@ -32,27 +32,27 @@ pub fn find_icon(name: &str) -> Res<Arc<Icon>> {
 }
 
 
-pub fn load_icon_as_size(name: &str, (w, h): (u32, u32)) -> Res<Vec<u8>> {
+pub fn load_icon_as_size(name: &str, [w, h]: [u32; 2]) -> Res<Vec<u8>> {
 
     let icon = find_icon(name)?;
 
     let path = icon.file_for_size(w as u16).path(); // get best fitting size
 
-    load_image_with_resize(path, |_| (w, h))
+    load_image_with_resize(path, |_| [w, h])
 }
 
 
-pub fn load_image_with_resize(path: impl AsRef<Path>, map_size: impl FnOnce((u32, u32)) -> (u32, u32)) -> Res<Vec<u8>> {
+pub fn load_image_with_resize(path: impl AsRef<Path>, map_size: impl FnOnce([u32; 2]) -> [u32; 2]) -> Res<Vec<u8>> {
 
     match path.as_ref().extension().and_then(|ext| ext.to_str()) {
 
         Some("png") => {
             let src = Pixmap::load_png(path).convert()?;
 
-            let (sw, sh) = (src.width(), src.height());
-            let (w, h) = map_size((sw, sh)); // possible resize
+            let [sw, sh] = [src.width(), src.height()];
+            let [w, h] = map_size([sw, sh]); // possible resize
 
-            if (sw, sh) == (w, h) { // if size matches
+            if [sw, sh] == [w, h] { // if size matches
                 Ok(src.take())
             }
             else {
@@ -69,19 +69,19 @@ pub fn load_image_with_resize(path: impl AsRef<Path>, map_size: impl FnOnce((u32
         Some("svg") => {
 
             let svg_data = std::fs::read(path).convert()?;
-            let rtree = Tree::from_usvg(&UsvgTree::from_data(&svg_data, &Options::default()).convert()?);
+            let tree = Tree::from_data(&svg_data, &Options::default()).convert()?;
 
-            let (w, h) = map_size((rtree.size.width() as u32, rtree.size.height() as u32)); // possible resize
+            let [w, h] = map_size([tree.size().width() as u32, tree.size().height() as u32]); // possible resize
 
             let mut pixmap = Pixmap::new(w, h).ok_or("couldn't create pixmap")?;
 
-            rtree.render(Transform::default(), &mut pixmap.as_mut());
+            render(&tree, Transform::default(), &mut pixmap.as_mut());
 
             Ok(pixmap.take())
         },
 
         Some(ext) => Err(format!("file type '{ext}' is not supported")),
 
-        None => Err("file type unknown is not supported".to_string()),
+        None => Err("unknown file type is not supported".to_string()),
     }
 }

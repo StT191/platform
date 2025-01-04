@@ -1,5 +1,5 @@
 
-use winit::{window::WindowId, event::WindowEvent};
+use winit::{window::WindowId, event::WindowEvent, event_loop::ActiveEventLoop};
 
 use crate::{*, error::Res};
 
@@ -10,7 +10,7 @@ use crate::time::*;
 use winit::event::StartCause;
 
 #[cfg(feature = "auto_wake_lock")]
-use crate::{error::log_warn, wake_lock::WakeLock};
+use crate::wake_lock::WakeLock;
 
 use super::{AppEvent, AppCtx, AppHandler};
 
@@ -30,7 +30,7 @@ impl<App: AppHandler> AppState<App> {
 
   pub(super) fn new(app_ctx: AppCtx, app: App) -> Self {
     Self {
-      #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new().inspect_err(|err| log_warn(err)).ok(),
+      #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new().inspect_err(|err| log_warn!(err)).ok(),
       #[cfg(feature = "frame_timer")] animate: DetectChanges::new(!app_ctx.animate),
       #[cfg(feature = "frame_timer")] requested: DetectChanges::new(None),
       #[cfg(feature = "frame_timer")] last: Instant::now(),
@@ -40,7 +40,7 @@ impl<App: AppHandler> AppState<App> {
     }
   }
 
-  pub(super) fn event(&mut self, event: PlatformEvent, event_target: &PlatformEventLoopWindowTarget) {
+  pub(super) fn event(&mut self, event: PlatformEvent, event_loop: &ActiveEventLoop) {
 
     let app_ctx = &mut self.app_ctx;
 
@@ -53,23 +53,23 @@ impl<App: AppHandler> AppState<App> {
 
       PlatformEvent::Resumed => {
         self.app.event(app_ctx, &AppEvent::Resumed);
-        self.after_event(event_target, None);
+        self.after_event(event_loop, None);
       },
 
       PlatformEvent::Suspended => {
         self.app.event(app_ctx, &AppEvent::Suspended);
-        self.after_event(event_target, None);
+        self.after_event(event_loop, None);
       },
 
       #[cfg(all(feature = "web_clipboard", target_family="wasm"))]
       PlatformEvent::UserEvent(user_event) => match user_event {
         PlatformEventExt::ClipboardFetch { window_id: id } if id == self.window_id => {
           self.app.event(app_ctx, &AppEvent::ClipboardFetch);
-          self.after_event(event_target, None);
+          self.after_event(event_loop, None);
         },
         PlatformEventExt::ClipboardPaste { window_id: id } if id == self.window_id  => {
           self.app.event(app_ctx, &AppEvent::ClipboardPaste);
-          self.after_event(event_target, None);
+          self.after_event(event_loop, None);
         },
         _ => {},
       },
@@ -98,8 +98,8 @@ impl<App: AppHandler> AppState<App> {
 
             self.next = self.last + app_ctx.duration;
 
-            if app_ctx.animate { event_target.set_wait_until(self.next); }
-            else { event_target.set_wait(); }
+            if app_ctx.animate { event_loop.set_wait_until(self.next); }
+            else { event_loop.set_wait(); }
           },
 
           WindowEvent::CloseRequested => {
@@ -119,7 +119,7 @@ impl<App: AppHandler> AppState<App> {
         // exec event handler
         self.app.event(app_ctx, &AppEvent::WindowEvent(window_event));
 
-        self.after_event(event_target, {
+        self.after_event(event_loop, {
           #[cfg(feature = "auto_wake_lock")] { focus_change }
           #[cfg(not(feature = "auto_wake_lock"))] { None }
         });
@@ -130,19 +130,19 @@ impl<App: AppHandler> AppState<App> {
     }
   }
 
-  fn after_event(&mut self, event_target: &PlatformEventLoopWindowTarget, focus_change: Option<bool>) {
+  fn after_event(&mut self, event_loop: &ActiveEventLoop, focus_change: Option<bool>) {
 
     let app_ctx = &mut self.app_ctx;
 
     if app_ctx.exit {
-      event_target.exit();
+      event_loop.exit();
       return;
     }
 
     #[cfg(feature = "auto_wake_lock")]
     fn wake_lock(wake_lock: &mut Option<WakeLock>, action: impl FnOnce(&mut WakeLock) -> Res<()>) {
       if let Some(wake_lock) = wake_lock.as_mut() {
-        action(wake_lock).unwrap_or_else(log_warn);
+        action(wake_lock).unwrap_or_else(|err| log_warn!(err));
       }
     }
 
@@ -186,7 +186,7 @@ impl<App: AppHandler> AppState<App> {
             app_ctx.window().request_redraw();
           }
           else {
-            event_target.set_earlier(self.next);
+            event_loop.set_earlier(self.next);
           }
         }
         else {
@@ -194,7 +194,7 @@ impl<App: AppHandler> AppState<App> {
           // release wake_lock
           wake_lock(&mut self.wake_lock, WakeLock::release);
 
-          event_target.set_wait();
+          event_loop.set_wait();
         }
       }
 
@@ -228,10 +228,10 @@ impl<App: AppHandler> AppState<App> {
               if self.next < now { self.next = now }
 
               if instant > self.next {
-                event_target.set_earlier(instant);
+                event_loop.set_earlier(instant);
               }
               else {
-                event_target.set_earlier(self.next);
+                event_loop.set_earlier(self.next);
               }
             }
             // else consider as infinite delay, keep ControlFLow::Wait

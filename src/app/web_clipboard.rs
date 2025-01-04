@@ -1,7 +1,7 @@
 
 use winit::window::WindowId;
 use std::{rc::Rc, cell::RefCell};
-use crate::{AppCtx, PlatformEventExt, PlatformEventLoopProxy, error::*};
+use crate::{*};
 use web_sys::{Clipboard as DomClipboard, ClipboardEvent};
 use js_sys::Function;
 use wasm_bindgen_futures::JsFuture;
@@ -26,7 +26,7 @@ impl ClipboardHandle {
 
       Ok(Self { clipboard, readable, writeable })
     })
-    ().map_err(|err: &str| log_warn(err)).ok()
+    ().map_err(|err: &str| log_warn!(err)).ok()
   }
 }
 
@@ -42,11 +42,11 @@ impl PasteListener {
         if let Some(transfer) = evt.clipboard_data() {
           clipboard_content.replace(
             transfer.get_data("text")
-            .map_err(log_err_debug).ok()
+            .map_err(|err| log_err_dbg!(err)).ok()
           );
         }
         if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardPaste { window_id }) {
-          log_err(err);
+          log_err!(err);
         }
       })
     }
@@ -55,7 +55,7 @@ impl PasteListener {
         if let Some(transfer) = evt.clipboard_data() {
           clipboard_content.replace(
             transfer.get_data("text")
-            .map_err(log_err_debug).ok()
+            .map_err(|err| log_err_dbg!(err)).ok()
           );
         }
       })
@@ -82,7 +82,7 @@ impl PasteListener {
 
       Ok(())
     })
-    ().unwrap_or_else(|err: &str| log_err(err));
+    ().unwrap_or_else(|err: &str| log_err!(err));
   }
 
   fn attached(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(PlatformEventLoopProxy, WindowId)>) -> Option<Self> {
@@ -90,7 +90,7 @@ impl PasteListener {
     match listener.attach() {
       Ok(()) => Some(listener),
       Err(err) => {
-        log_err(err);
+        log_err!(err);
         None
       }
     }
@@ -156,11 +156,11 @@ impl WebClipboard {
           content.replace(
             match JsFuture::from(promise).await {
               Ok(res) => res.as_string(),
-              Err(err) => { log_err_debug(err); None },
+              Err(err) => { log_err_dbg!(err); None },
             }
           );
           if let Err(err) = event_loop_proxy.send_event(PlatformEventExt::ClipboardFetch { window_id }) {
-            log_err(err);
+            log_err!(err);
           }
         });
       }
@@ -169,7 +169,7 @@ impl WebClipboard {
           content.replace(
             match JsFuture::from(promise).await {
               Ok(res) => res.as_string(),
-              Err(err) => { log_err_debug(err); None },
+              Err(err) => { log_err_dbg!(err); None },
             }
           );
         });

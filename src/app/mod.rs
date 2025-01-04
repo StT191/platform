@@ -89,16 +89,16 @@ macro_rules! app_closure {
 
 #[macro_export]
 macro_rules! main_app {
-  ($log_level:expr, $window_builder:expr, $init_data:expr $(,)?) => {
+  ($log_level:expr, $window_attributes:expr, $init_data:expr $(,)?) => {
     fn main() {
       $crate::init($log_level);
-      $crate::AppMount::start($window_builder, $init_data);
+      $crate::AppMount::start($window_attributes, $init_data);
     }
   };
-  ($log_level:expr, $window_builder:expr, $app_type:ty, $init_data:expr $(,)?) => {
+  ($log_level:expr, $window_attributes:expr, $app_type:ty, $init_data:expr $(,)?) => {
     fn main() {
       $crate::init($log_level);
-      $crate::AppMount::<$app_type>::start($window_builder, $init_data);
+      $crate::AppMount::<$app_type>::start($window_attributes, $init_data);
     }
   };
 }
@@ -106,9 +106,9 @@ macro_rules! main_app {
 
 #[macro_export]
 macro_rules! main_app_closure {
-  ($log_level:expr, $window_builder:expr, $init_fn:expr $(,)?) => {
+  ($log_level:expr, $window_attributes:expr, $init_fn:expr $(,)?) => {
     $crate::main_app!(
-      $log_level, $window_builder,
+      $log_level, $window_attributes,
       $crate::AppClosure::<_>, $crate::app_closure!($init_fn),
     );
   };

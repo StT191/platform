@@ -4,7 +4,6 @@
 use winit::event_loop::{
     EventLoop as WinitEventLoop,
     EventLoopProxy as WinitEventLoopProxy,
-    EventLoopWindowTarget as WinitEventLoopWindowTarget,
     EventLoopClosed as WinitEventLoopClosed,
 };
 use winit::event::Event as WinitEventType;
@@ -24,7 +23,6 @@ pub enum PlatformEventExt {
 
 pub type PlatformEventLoop = WinitEventLoop<PlatformEventExt>;
 pub type PlatformEventLoopProxy = WinitEventLoopProxy<PlatformEventExt>;
-pub type PlatformEventLoopWindowTarget = WinitEventLoopWindowTarget<PlatformEventExt>;
 pub type PlatformEvent = WinitEventType<PlatformEventExt>;
 pub type PlatformEventLoopClosed = WinitEventLoopClosed<PlatformEventExt>;
 
@@ -43,7 +41,7 @@ pub use init::*;
 
 // extension
 
-use winit::event_loop::{EventLoopWindowTarget, ControlFlow};
+use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use crate::time::Instant;
 
 pub trait ControlFlowExtension {
@@ -53,7 +51,7 @@ pub trait ControlFlowExtension {
     fn set_earlier(&self, instant: Instant);
 }
 
-impl<T> ControlFlowExtension for EventLoopWindowTarget<T> {
+impl ControlFlowExtension for ActiveEventLoop {
 
     fn set_poll(&self) { self.set_control_flow(ControlFlow::Poll); }
     fn set_wait(&self) { self.set_control_flow(ControlFlow::Wait); }

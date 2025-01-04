@@ -20,10 +20,12 @@ impl<T, E: ToString> ConvertResult<T, E> for Result<T, E> {
 }
 
 // log helper
-use std::fmt::{Display, Debug};
+#[macro_export]
+macro_rules! log_warn {($msg:expr) => ($crate::log::warn!("{}", $msg))}
+#[macro_export]
+macro_rules! log_err {($msg:expr) => ($crate::log::error!("{}", $msg))}
 
-pub fn log_warn(err: impl Display) { log::warn!("{err}") }
-pub fn log_err(err: impl Display) { log::error!("{err}") }
-
-pub fn log_warn_debug(err: impl Debug) { log::warn!("{err:?}") }
-pub fn log_err_debug(err: impl Debug) { log::error!("{err:?}") }
+#[macro_export]
+macro_rules! log_warn_dbg {($msg:expr) => ($crate::log::warn!("{:?}", $msg))}
+#[macro_export]
+macro_rules! log_err_dbg {($msg:expr) => ($crate::log::error!("{:?}", $msg))}

@@ -1,16 +1,16 @@
 
 use ::platform::winit::{
-  window::WindowBuilder,
+  window::WindowAttributes,
   event::{WindowEvent, KeyEvent, ElementState},
   keyboard::{PhysicalKey, KeyCode},
 };
 use wgx::{*, /*cgmath::**/};
 
-use platform::{*, time::*, error::*};
+use platform::{*, time::*};
 
 main_app_closure! {
   LogLevel::Warn,
-  WindowBuilder::new(),
+  WindowAttributes::default(),
   init_app,
 }
 
@@ -20,7 +20,7 @@ async fn init_app(ctx: &mut AppCtx) -> impl FnMut(&mut AppCtx, &AppEvent) {
 
   let (gx, mut target) = Wgx::new_with_target(window.clone(), features!(), limits!(), window.inner_size(), 4, None).await.unwrap();
 
-  log::warn!("{:?}", gx.adapter.get_info());
+  log_warn_dbg!(gx.adapter.get_info());
 
   let shader = gx.load_wgsl(wgsl_modules::inline!("$shader" <= {
     @vertex
@@ -66,9 +66,9 @@ async fn init_app(ctx: &mut AppCtx) -> impl FnMut(&mut AppCtx, &AppEvent) {
           rpass.draw(0..3, 0..1);
         });
 
-      })).unwrap_or_else(log_warn);
+      })).unwrap_or_else(|err| log_err!(err));
 
-      log_warn_debug(then.elapsed());
+      log_warn_dbg!(then.elapsed());
     }
 
     _ => {},

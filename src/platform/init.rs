@@ -1,9 +1,9 @@
 
-use winit::event_loop::EventLoopBuilder;
-use winit::window::{Window as WinitWindow, WindowBuilder};
+use winit::event_loop::{EventLoop, ActiveEventLoop};
+use winit::window::{Window as WinitWindow, WindowAttributes};
 
 #[cfg(target_family="wasm")]
-use winit::platform::web::{WindowExtWebSys, WindowBuilderExtWebSys};
+use winit::platform::web::{WindowExtWebSys, WindowAttributesExtWebSys};
 
 use crate::*;
 
@@ -21,18 +21,18 @@ pub fn init(log_level: LogLevel) {
 
 
 pub fn event_loop() -> PlatformEventLoop {
-    EventLoopBuilder::with_user_event().build().unwrap()
+    EventLoop::with_user_event().build().unwrap()
 }
 
 
-pub fn window(event_loop: &PlatformEventLoopWindowTarget, window_builder: WindowBuilder) -> WinitWindow {
+pub fn window(event_loop: &ActiveEventLoop, window_attributes: WindowAttributes) -> WinitWindow {
 
     #[cfg(not(target_family="wasm"))] {
-        window_builder.build(event_loop).unwrap()
+        event_loop.create_window(window_attributes).unwrap()
     }
 
     #[cfg(target_family="wasm")] {
-        window_builder.with_prevent_default(false).build(event_loop).unwrap()
+        event_loop.create_window(window_attributes.with_prevent_default(false)).unwrap()
     }
 }
 
