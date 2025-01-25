@@ -1,5 +1,5 @@
 
-use std::{sync::Arc, path::{Path, PathBuf}};
+use std::{sync::Arc, path::{Path, PathBuf}, env};
 use ::icon_loader::{IconLoader, ThemeNameProvider::{GTK, KDE}, SearchPaths, Icon};
 use resvg::{render, usvg::{Tree, Options}, tiny_skia::{Pixmap, Transform, PixmapPaint}};
 use anyhow::{Result as Res, Context, anyhow};
@@ -11,7 +11,8 @@ pub fn find_icon(name: &str) -> Res<Arc<Icon>> {
     // round up search paths
     loader.set_search_paths(SearchPaths::System);
 
-    let mut home_path = PathBuf::from(env!("HOME"));
+    let home_var = env::var("HOME").context("failed fetching env var HOME")?;
+    let mut home_path = PathBuf::from(home_var);
     home_path.push(".local/share/icons");
 
     if !loader.search_paths().contains(&home_path) {
@@ -28,7 +29,7 @@ pub fn find_icon(name: &str) -> Res<Arc<Icon>> {
         loader.update_theme_name().ok()?;
         loader.load_icon(name)
     })
-    .with_context(|| format!("icon '{name}' not was not found"))
+    .with_context(|| format!("icon '{name}' was not found"))
 }
 
 

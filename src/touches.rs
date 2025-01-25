@@ -106,7 +106,9 @@ impl<T: TouchExt + 'static, const SHRINK_TO:usize, const MAX:usize> Touches<T, S
     pub fn iter(&self) -> slice::Iter<'_, TouchRegister<T>> { self.vec.iter() }
     pub fn iter_mut(&mut self) -> slice::IterMut<'_, TouchRegister<T>> { self.vec.iter_mut() }
 
-    pub fn by_id<'a>(&'a mut self, id: u64) -> iter::Filter<slice::IterMut<'a, TouchRegister<T>>, impl FnMut(&&'a mut TouchRegister<T>) -> bool + Clone> {
+    pub fn by_id<'a>(&'a mut self, id: u64)
+        -> iter::Filter<slice::IterMut<'a, TouchRegister<T>>, impl FnMut(&&'a mut TouchRegister<T>) -> bool>
+    {
         self.iter_mut().filter(move |reg| reg.id == id)
     }
 
