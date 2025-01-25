@@ -12,8 +12,8 @@ pub use pollster;
 pub use robius_directories as directories;
 
 // mods
-mod platform_winit;
-pub use platform_winit::*;
+mod init;
+pub use init::*;
 
 mod future;
 pub use future::*;
@@ -26,8 +26,6 @@ pub use app::*;
 
 #[cfg(feature="touches")]
 pub mod touches;
-
-mod log_helper;
 
 pub mod timer;
 
