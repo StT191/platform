@@ -1,8 +1,8 @@
 [package]
 name = "platform"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
 
 [lib]
@@ -14,7 +14,10 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
 
 
 [features]
-frame_timer = []
+app_timer = []
+frame_pacing = []
+app_waker = []
+device_events = []
 auto_wake_lock = ["wake_lock"]
 wake_lock = ["dep:nosleep", "web-sys/Navigator", "web-sys/WakeLock", "web-sys/WakeLockType", "web-sys/WakeLockSentinel"]
 touches = ["dep:glam"]
