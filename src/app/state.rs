@@ -175,7 +175,7 @@ impl<App: AppHandler> AppState<App> {
         let now = Instant::now();
 
         if instant > now {
-          app_ctx.timer.borrow_mut().set_timeout_earlier(
+          let _ = app_ctx.timer.borrow_mut().set_timeout_earlier(
             AppTimeoutId::FrameRequest(self.window_id),
             instant
           );
