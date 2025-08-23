@@ -1,9 +1,9 @@
 [package]
 name = "rel_path"
-version = "1.0.0"
-authors = ["Stefan Tammer"]
-edition = "2024"
-license = "MIT"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 rust-version = "1.88"
 
 [lib]
@@ -11,5 +11,5 @@ name = "rel_path"
 proc-macro = true
 
 [dependencies]
-syn = "2"
+syn = { version = "2", default-features = false, features = ["parsing", "proc-macro"] }
 quote = "1"

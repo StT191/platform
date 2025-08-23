@@ -1,10 +1,9 @@
-#![feature(never_type, associated_type_defaults, array_chunks)]
+#![feature(never_type, associated_type_defaults)]
 
 // re-exports
 pub use winit;
 pub use web_time as time;
 pub use log::{self, Level as LogLevel};
-pub use anyhow;
 pub use rel_path::*;
 
 #[cfg(not(target_family="wasm"))]
@@ -14,6 +13,8 @@ pub use pollster;
 pub use robius_directories as directories;
 
 // mods
+pub mod anyhow; // als re-exports the anyhow crate
+
 mod init;
 pub use init::*;
 
@@ -44,7 +45,9 @@ pub mod storage;
 pub mod rng;
 
 #[cfg(any(feature="rapidhash", feature="rng"))]
-pub use rapidhash;
+pub mod rapidhash {
+    pub use ::rapidhash::{*, fast::*};
+}
 
 #[cfg(all(feature="icon_loader", target_os="linux"))]
 pub mod icon_loader;

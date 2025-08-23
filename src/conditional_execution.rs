@@ -1,4 +1,5 @@
 
+// detect changes
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DetectChanges<T: PartialEq + Clone> {
     state: T,
@@ -32,26 +33,16 @@ impl<T: PartialEq + Clone> DetectChanges<T> {
 }
 
 
-#[derive(Debug, Default)]
-pub struct Once {
-    once: bool
+// once extension
+pub use std::sync::Once;
+
+pub trait ButOnce {
+    fn call_but_once(&self, func: impl FnOnce());
 }
 
-impl Once {
-
-    pub fn new() -> Self { Self::default() }
-
-    pub fn call_once(&mut self, func: impl FnOnce()) -> bool {
-        if !self.once {
-            self.once = true;
-            func();
-            true
-        }
-        else { false }
-    }
-
-    pub fn call_but_once(&mut self, func: impl FnOnce()) -> bool {
-        if self.once { func(); true }
-        else { self.once = true; false }
+impl ButOnce for Once {
+    fn call_but_once(&self, func: impl FnOnce()) {
+        if self.is_completed() { func(); }
+        else { self.call_once(|| {}); }
     }
 }

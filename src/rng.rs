@@ -1,54 +1,23 @@
 
 // export
-use std::sync::Once;
-
 pub use rand::{*, Rng as RngTrait};
-pub use getrandom;
-
-pub use rapidhash::RapidRng;
+pub use rapidhash::rng::RapidRng;
 
 
+// best effort for the simplest source of entropy on every platform
+// the entropy rises with every call at unpredictable times
 #[inline]
 pub fn entropy() -> u64 {
-
-    // try with getrandom
-    use std::mem::{MaybeUninit, transmute};
-
-    unsafe {
-        // SAFETY: array of uninits is valid
-        let mut bytes_uninit: [MaybeUninit<u8>; 8] = MaybeUninit::uninit().assume_init();
-
-        match getrandom::fill_uninit(&mut bytes_uninit) {
-            Ok(_) => {
-                // SAFETY: bytes can be assumed init after getrandom succeeds
-                let bytes: [u8; 8] = transmute(bytes_uninit);
-                return u64::from_ne_bytes(bytes);
-            },
-            Err(err) => {
-                static REPORT_ERR: Once = Once::new();
-
-                REPORT_ERR.call_once(|| {
-                    log::warn!("getrandom failed: {:?}", err);
-                });
-            },
-        }
-    }
-
-    // fallback
-    use std::hash::{Hash, Hasher, BuildHasher, RandomState};
-    use crate::time::Instant;
-
-    let mut hasher = RandomState::new().build_hasher();
-    Instant::now().hash(&mut hasher);
-
-    hasher.finish()
+    use std::hash::{BuildHasher, RandomState};
+    RandomState::new().hash_one(crate::time::SystemTime::now())
 }
 
 
-// convenience method to instatiate a Rng with entropy
-
-pub trait WithEntropy {
+// convenience method to instatiate a seedable Rng with entropy
+pub trait WithEntropy: Sized {
     fn with_entropy() -> Self;
+    #[inline]
+    fn reseed_with_entropy(&mut self) { *self = Self::with_entropy() }
 }
 
 impl<Rng: SeedableRng> WithEntropy for Rng {
@@ -57,29 +26,16 @@ impl<Rng: SeedableRng> WithEntropy for Rng {
 }
 
 
-// custom time-based rng
-use rapidhash::RapidHasher;
-use std::hash::*;
-use crate::time::Instant;
+// simple Rng wrapper around entropy
+#[derive(Copy, Clone, Default, Debug)]
+pub struct EntropyRng;
 
-#[derive(Copy, Clone, PartialEq, Eq, Default)]
-pub struct TimeRng { pub hasher: RapidHasher }
-
-impl TimeRng {
-
+impl EntropyRng {
     #[inline]
-    pub fn new(seed: u64) -> Self {
-        Self { hasher: RapidHasher::new(seed) }
-    }
-
-    #[inline]
-    pub fn next(&mut self) -> u64 {
-        Instant::now().hash(&mut self.hasher);
-        self.hasher.finish()
-    }
+    pub fn next(&mut self) -> u64 { entropy() }
 }
 
-impl RngCore for TimeRng {
+impl RngCore for EntropyRng {
 
     #[inline]
     fn next_u64(&mut self) -> u64 { self.next() }
@@ -90,25 +46,66 @@ impl RngCore for TimeRng {
     #[inline]
     fn fill_bytes(&mut self, buffer: &mut [u8]) {
 
-        let mut chunks = buffer.array_chunks_mut::<8>();
+        let (chunks, remainder) = buffer.as_chunks_mut::<8>();
 
-        for chunk in &mut chunks {
+        for chunk in chunks {
             *chunk = self.next().to_le_bytes();
         }
 
-        let remainder = chunks.into_remainder();
-
         if !remainder.is_empty() {
             let random = self.next().to_le_bytes();
-            for i in 0..remainder.len() {
-                remainder[i] = random[i];
-            }
+            remainder.copy_from_slice(&random[0..remainder.len()]);
         }
-
     }
 }
 
-impl SeedableRng for TimeRng {
+
+// time-hash-based rng, works similar to EntropyRng internally
+use crate::rapidhash::RapidHasher;
+use std::hash::*;
+
+#[derive(Copy, Clone, Default)]
+pub struct RapidTimeRng { pub hasher: RapidHasher }
+
+impl RapidTimeRng {
+
+    #[inline]
+    pub fn new(seed: u64) -> Self {
+        Self { hasher: RapidHasher::new(seed) }
+    }
+
+    #[inline]
+    pub fn next(&mut self) -> u64 {
+        crate::time::Instant::now().hash(&mut self.hasher);
+        self.hasher.finish()
+    }
+}
+
+impl RngCore for RapidTimeRng {
+
+    #[inline]
+    fn next_u64(&mut self) -> u64 { self.next() }
+
+    #[inline]
+    fn next_u32(&mut self) -> u32 { self.next() as u32 }
+
+    #[inline]
+    fn fill_bytes(&mut self, buffer: &mut [u8]) {
+
+        let (chunks, remainder) = buffer.as_chunks_mut::<8>();
+
+        for chunk in chunks {
+            *chunk = self.next().to_le_bytes();
+        }
+
+        if !remainder.is_empty() {
+            let random = self.next().to_le_bytes();
+            remainder.copy_from_slice(&random[0..remainder.len()]);
+        }
+    }
+}
+
+impl SeedableRng for RapidTimeRng {
     type Seed = [u8; 8];
 
     #[inline]
@@ -135,9 +132,21 @@ mod tests {
     }
 
     #[test]
-    fn time_rng_ranges() {
+    fn entropy_rng_ranges() {
 
-        let mut rng = TimeRng::with_entropy();
+        let mut rng = EntropyRng;
+
+        let num: u32 = rng.random_range(1..2);
+        assert_eq!(num, 1);
+
+        let num: i32 = rng.random_range(-3..-2);
+        assert_eq!(num, -3);
+    }
+
+    #[test]
+    fn rapid_time_rng_ranges() {
+
+        let mut rng = RapidTimeRng::with_entropy();
 
         let num: u32 = rng.random_range(1..2);
         assert_eq!(num, 1);
