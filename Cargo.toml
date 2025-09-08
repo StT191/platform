@@ -1,6 +1,6 @@
 [package]
 name = "platform"
-version = "1.2.0"
+version = "1.3.0"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -14,9 +14,10 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
 
 
 [features]
-app_timer = []
+timeout = []
+async_timeout = []
 frame_pacing = []
-app_waker = []
+futures = ["dep:rustc-hash"]
 device_events = []
 auto_wake_lock = ["wake_lock"]
 wake_lock = ["dep:nosleep", "web-sys/Navigator", "web-sys/WakeLock", "web-sys/WakeLockType", "web-sys/WakeLockSentinel"]
@@ -29,12 +30,12 @@ storage = ["directories", "web-sys/Storage"]
 
 
 [dependencies]
-winit = { git = "https://github.com/iced-rs/winit", rev = "254d6b3420ce4e674f516f7a2bd440665e05484d" }
+winit = { git = "https://github.com/iced-rs/winit", rev = "11414b6aa45699f038114e61b4ddf5102b2d3b4b" }
 log = "0.4"
 anyhow = "1"
 web-time = "1"
-take_mut = "0.2"
 
+rustc-hash = { version = "2", optional = true }
 getrandom = { version = "0.2", features = ["js"], optional = true }
 fastrand = { version = "2", default-features = false, optional = true }
 glam = { version = ">=0.29", optional = true }

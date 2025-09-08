@@ -35,14 +35,14 @@ struct PasteListener { listener: Function }
 
 impl PasteListener {
 
-  fn new(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(AppEventLoopProxy, WindowId)>) -> Self {
+  fn new(clipboard_content: Rc<RefCell<Option<String>>>, event_dispatcher: Option<(AppCtxEventDispatcher, WindowId)>) -> Self {
 
-    let closure: Box<dyn Fn(ClipboardEvent)> = if let Some((event_loop_proxy, window_id)) = event_proxy {
+    let closure: Box<dyn Fn(ClipboardEvent)> = if let Some((dispatcher, window_id)) = event_dispatcher {
       Box::new(move |evt| {
         if let Some(transfer) = evt.clipboard_data() {
           clipboard_content.replace(transfer.get_data("text").map_err(|m| log::error!("{m:?}")).ok());
         }
-        event_loop_proxy.send_event(AppEventExt::ClipboardPaste {window_id}).unwrap_or_else(|m| log::error!("{m:?}"));
+        dispatcher.dispatch(AppEventExt::ClipboardPaste(window_id));
       })
     }
     else {
@@ -77,7 +77,7 @@ impl PasteListener {
     ().unwrap_or_else(|m: &str| log::error!("{m:?}"));
   }
 
-  fn attached(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(AppEventLoopProxy, WindowId)>) -> Option<Self> {
+  fn attached(clipboard_content: Rc<RefCell<Option<String>>>, event_proxy: Option<(AppCtxEventDispatcher, WindowId)>) -> Option<Self> {
     let listener = Self::new(clipboard_content, event_proxy);
     listener.attach().map(|()| listener).map_err(|m| log::error!("{m:?}")).ok()
   }
@@ -90,7 +90,7 @@ pub struct WebClipboard {
   content: Rc<RefCell<Option<String>>>,
   handle: Option<ClipboardHandle>,
   paste_listener: Option<PasteListener>,
-  event_proxy: Option<(AppEventLoopProxy, WindowId)>,
+  event_dispatcher: Option<(AppCtxEventDispatcher, WindowId)>,
 }
 
 impl WebClipboard {
@@ -98,18 +98,18 @@ impl WebClipboard {
   pub fn connect(app_ctx: &AppCtx, attach_listener: bool) -> Self {
 
     let window_id = app_ctx.window().id();
-    let event_loop_proxy = app_ctx.event_loop_proxy.clone();
+    let event_dispatcher = app_ctx.event_dispatcher.clone();
 
     let content = RefCell::new(None).into();
 
     let paste_listener = match attach_listener {
-      true => PasteListener::attached(Rc::clone(&content), Some((event_loop_proxy.clone(), window_id))),
+      true => PasteListener::attached(Rc::clone(&content), Some((event_dispatcher.clone(), window_id))),
       false => None,
     };
 
     Self {
       content, handle: ClipboardHandle::new(), paste_listener,
-      event_proxy: Some((event_loop_proxy, window_id)),
+      event_dispatcher: Some((event_dispatcher, window_id)),
     }
   }
 
@@ -124,7 +124,7 @@ impl WebClipboard {
 
     Self {
       content, handle: ClipboardHandle::new(), paste_listener,
-      event_proxy: None,
+      event_dispatcher: None,
     }
   }
 
@@ -134,8 +134,8 @@ impl WebClipboard {
       let content = Rc::clone(&self.content);
       let promise = clipboard.read_text();
 
-      if let Some((event_loop_proxy, window_id)) = &self.event_proxy {
-        let event_loop_proxy = event_loop_proxy.clone();
+      if let Some((dispatcher, window_id)) = &self.event_dispatcher {
+        let dispatcher = dispatcher.clone();
         let window_id = *window_id;
 
         wasm_bindgen_futures::spawn_local(async move {
@@ -144,7 +144,7 @@ impl WebClipboard {
             .map_err(|m| log::error!("{m:?}")).ok()
             .and_then(|res| res.as_string())
           );
-          event_loop_proxy.send_event(AppEventExt::ClipboardFetch {window_id}).unwrap_or_else(|m| log::error!("{m:?}"));
+          dispatcher.dispatch(AppEventExt::ClipboardFetch(window_id));
         });
       }
       else {
@@ -174,7 +174,7 @@ impl WebClipboard {
   // introspective methods
 
   pub fn is_connected(&self) -> bool {
-    self.event_proxy.is_some()
+    self.event_dispatcher.is_some()
   }
 
   pub fn is_listening(&self) -> bool {
