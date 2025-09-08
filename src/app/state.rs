@@ -73,6 +73,11 @@ impl<App: AppHandler> AppState<App> {
         _ => {},
       },
 
+      PlatformEvent::DeviceEvent {device_id, event} => {
+        self.app.event(app_ctx, &AppEvent::DeviceEvent {device_id, event});
+        self.after_event(event_loop, None);
+      },
+
       PlatformEvent::WindowEvent { window_id: id, event: window_event } if id == self.window_id => {
 
         #[cfg(feature = "auto_wake_lock")]
