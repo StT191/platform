@@ -1,6 +1,6 @@
 [package]
 name = "platform"
-version = "1.3.0"
+version = "1.3.1"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -17,12 +17,13 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
 timeout = []
 async_timeout = []
 frame_pacing = []
-futures = ["dep:rustc-hash"]
+futures = ["rapidhash"]
 device_events = []
 auto_wake_lock = ["wake_lock"]
 wake_lock = ["dep:nosleep", "web-sys/Navigator", "web-sys/WakeLock", "web-sys/WakeLockType", "web-sys/WakeLockSentinel"]
 touches = ["dep:glam"]
-rng = ["dep:getrandom", "dep:fastrand"]
+rapidhash = ["rapidhash/std"]
+rng = ["dep:rand", "dep:getrandom", "rapidhash/rng"]
 icon_loader = ["dep:icon-loader", "dep:resvg"]
 web_clipboard = ["web-sys/Clipboard", "web-sys/ClipboardEvent", "web-sys/DataTransfer"]
 directories = ["dep:robius-directories"]
@@ -35,9 +36,9 @@ log = "0.4"
 anyhow = "1"
 web-time = "1"
 
-rustc-hash = { version = "2", optional = true }
-getrandom = { version = "0.2", features = ["js"], optional = true }
-fastrand = { version = "2", default-features = false, optional = true }
+rapidhash = { version = "1.4", default-features = false, features = ["unsafe"], optional = true }
+rand = { version = "0.9", default-features = false, features = ["os_rng"], optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
 glam = { version = ">=0.29", optional = true }
 
 

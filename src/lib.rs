@@ -1,4 +1,4 @@
-#![feature(never_type, associated_type_defaults)]
+#![feature(never_type, associated_type_defaults, array_chunks)]
 
 // re-exports
 pub use winit;
@@ -38,6 +38,9 @@ pub mod storage;
 
 #[cfg(feature="rng")]
 pub mod rng;
+
+#[cfg(any(feature="rapidhash", feature="rng"))]
+pub use rapidhash;
 
 #[cfg(all(feature="icon_loader", target_os="linux"))]
 pub mod icon_loader;

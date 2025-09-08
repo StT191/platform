@@ -36,11 +36,11 @@ pub use single::*;
 #[cfg(feature = "futures")]
 mod mapped {
   use super::*;
-  use rustc_hash::FxHashMap;
+  use rapidhash::RapidHashMap;
 
   #[derive(Default)]
   pub struct AppFutures {
-    futures: FxHashMap<u64, BoxFuture<'static, ()>>,
+    futures: RapidHashMap<u64, BoxFuture<'static, ()>>,
     next_id: u64,
   }
 
