@@ -23,7 +23,7 @@ web_clipboard = ["web-sys/Clipboard", "web-sys/ClipboardEvent", "web-sys/DataTra
 
 
 [dependencies]
-winit = "0.30"
+winit = { git = "https://github.com/iced-rs/winit", rev = "254d6b3420ce4e674f516f7a2bd440665e05484d" }
 log = "0"
 anyhow = "1"
 web-time = "1"
