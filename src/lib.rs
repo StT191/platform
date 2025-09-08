@@ -5,6 +5,7 @@ pub use winit;
 pub use web_time as time;
 pub use log::{self, Level as LogLevel};
 pub use anyhow;
+pub use rel_path::*;
 
 #[cfg(not(target_family="wasm"))]
 pub use pollster;
@@ -24,6 +25,9 @@ pub use conditional_execution::*;
 
 mod runtime;
 pub use runtime::*;
+
+mod norm_path;
+pub use norm_path::*;
 
 mod app;
 pub use app::*;

@@ -17,7 +17,7 @@ fn main() {
             let then = Instant::now();
 
             for _ in 0..times {
-                sum += rng.gen_range(0..range);
+                sum += rng.random_range(0..range);
             }
 
             let elapsed = then.elapsed();
@@ -33,7 +33,7 @@ fn main() {
             let then = Instant::now();
 
             for _ in 0..times {
-                sum += rng.gen_range(0..range);
+                sum += rng.random_range(0..range);
             }
 
             let elapsed = then.elapsed();

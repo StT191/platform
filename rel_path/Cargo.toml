@@ -1,0 +1,15 @@
+[package]
+name = "rel_path"
+version = "1.0.0"
+authors = ["Stefan Tammer"]
+edition = "2024"
+license = "MIT"
+rust-version = "1.88"
+
+[lib]
+name = "rel_path"
+proc-macro = true
+
+[dependencies]
+syn = "2"
+quote = "1"
