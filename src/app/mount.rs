@@ -4,28 +4,29 @@ use winit::application::ApplicationHandler;
 use std::sync::mpsc::{Receiver, sync_channel};
 
 use crate::*;
-use super::{AppHandler, AppState, AppCtx};
+use super::*;
 
 
 enum MountState<App: AppHandler> {
   Init {
-    event_queue: Vec<PlatformEvent>,
+    event_queue: Vec<AppEvent>,
+    event_loop_proxy: AppEventLoopProxy,
     window_attributes: WindowAttributes,
-    event_loop_proxy: PlatformEventLoopProxy,
     init_data: App::InitData,
   },
   Window {
-    event_queue: Vec<PlatformEvent>,
+    event_queue: Vec<AppEvent>,
+    event_loop_proxy: AppEventLoopProxy,
     window: Window,
-    event_loop_proxy: PlatformEventLoopProxy,
     init_data: App::InitData,
   },
   Mounting {
-    event_queue: Vec<PlatformEvent>,
+    event_queue: Vec<AppEvent>,
     window_id: WindowId,
     receiver: Receiver<AppState<App>>,
   },
   Mounted(AppState<App>),
+  Dropped,
 }
 
 
@@ -35,11 +36,11 @@ pub struct AppMount<App: AppHandler> {
 
 impl<App: AppHandler> AppMount<App> {
 
-  pub fn mount(event_loop_proxy: PlatformEventLoopProxy, window_attributes: WindowAttributes, init_data: App::InitData) -> Self {
-    Self { state: MountState::Init { event_queue: Vec::new(), window_attributes, event_loop_proxy, init_data } }
+  pub fn mount(event_loop_proxy: AppEventLoopProxy, window_attributes: WindowAttributes, init_data: App::InitData) -> Self {
+    Self { state: MountState::Init { event_queue: Vec::new(), event_loop_proxy, window_attributes, init_data } }
   }
 
-  pub fn run(self, event_loop: PlatformEventLoop) {
+  pub fn run(self, event_loop: AppEventLoop) {
 
     #[cfg(not(target_family="wasm"))] {
       let mut app = self;
@@ -57,7 +58,11 @@ impl<App: AppHandler> AppMount<App> {
     Self::mount(event_loop.create_proxy(), window_attributes, init_data).run(event_loop);
   }
 
-  pub fn event(&mut self, event: PlatformEvent, event_loop: &ActiveEventLoop) {
+  pub fn event(&mut self, event: AppEvent, event_loop: &ActiveEventLoop) {
+
+    if matches!(event, AppEvent::LoopExiting) {
+      self.state = MountState::Dropped;
+    }
 
     match &mut self.state {
 
@@ -67,7 +72,7 @@ impl<App: AppHandler> AppMount<App> {
       // init state
       MountState::Init { event_queue, .. } => match &event {
 
-        PlatformEvent::Resumed => {
+        AppEvent::Resumed => {
 
           event_queue.push(event);
 
@@ -90,7 +95,7 @@ impl<App: AppHandler> AppMount<App> {
       // after window creation
       MountState::Window { event_queue, window, .. } => match &event {
 
-        PlatformEvent::WindowEvent { event: WindowEvent::Resized {..}, window_id: id } if *id == window.id() => {
+        AppEvent::WindowEvent { event: WindowEvent::Resized {..}, window_id: id } if *id == window.id() => {
 
           event_queue.push(event);
 
@@ -105,7 +110,7 @@ impl<App: AppHandler> AppMount<App> {
                 let app = App::init(&mut app_ctx, init_data).await;
                 let app_state = AppState::new(app_ctx, app);
                 sender.send(app_state).unwrap();
-                event_loop_proxy.send_event(PlatformEventExt::AppInit {window_id}).unwrap();
+                event_loop_proxy.send_event(AppEventExt::AppInit {window_id}).unwrap();
               });
 
               MountState::Mounting { event_queue, window_id, receiver }
@@ -120,51 +125,56 @@ impl<App: AppHandler> AppMount<App> {
       // waiting for the app
       MountState::Mounting { event_queue, receiver, window_id } => match &event {
 
-        PlatformEvent::UserEvent(PlatformEventExt::AppInit {window_id: id}) if id == window_id => {
+        AppEvent::UserEvent(AppEventExt::AppInit {window_id: id}) if id == window_id => {
 
-          if let Ok(mut app_state) = receiver.try_recv() {
+          let mut app_state = receiver.recv().unwrap();
 
-            for event in event_queue.drain(..) {
-              app_state.event(event, event_loop);
-            }
-
-            self.state = MountState::Mounted(app_state);
+          for event in event_queue.drain(..) {
+            app_state.event(event, event_loop);
           }
+
+          self.state = MountState::Mounted(app_state);
         },
 
         _ => event_queue.push(event),
 
       },
 
+      MountState::Dropped => {}, // ignore further events
     }
   }
 }
 
 
-impl<App: AppHandler> ApplicationHandler<PlatformEventExt> for AppMount<App> {
+impl<App: AppHandler> ApplicationHandler<AppEventExt> for AppMount<App> {
 
   fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-    self.event(PlatformEvent::NewEvents(cause), event_loop);
+    self.event(AppEvent::NewEvents(cause), event_loop);
   }
 
   fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-    self.event(PlatformEvent::Resumed, event_loop);
+    self.event(AppEvent::Resumed, event_loop);
   }
 
   fn suspended(&mut self, event_loop: &ActiveEventLoop) {
-    self.event(PlatformEvent::Suspended, event_loop);
+    self.event(AppEvent::Suspended, event_loop);
   }
 
-  fn user_event(&mut self, event_loop: &ActiveEventLoop, event: PlatformEventExt) {
-    self.event(PlatformEvent::UserEvent(event), event_loop);
+  fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEventExt) {
+    self.event(AppEvent::UserEvent(event), event_loop);
   }
 
   fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
-    self.event(PlatformEvent::WindowEvent { window_id, event }, event_loop);
+    self.event(AppEvent::WindowEvent { window_id, event }, event_loop);
   }
 
+  fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+    self.event(AppEvent::LoopExiting, event_loop);
+  }
+
+  #[cfg(feature = "device_events")]
   fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
-    self.event(PlatformEvent::DeviceEvent { device_id, event }, event_loop);
+    self.event(AppEvent::DeviceEvent { device_id, event }, event_loop);
   }
 
 }

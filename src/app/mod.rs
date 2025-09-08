@@ -1,37 +1,58 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use winit::event::{WindowEvent, DeviceId, DeviceEvent};
+use winit::{window::WindowId, event::{*, Event as WinitEvent}, event_loop::*};
 use crate::*;
 
 // mods
 mod ctx;
 mod state;
 mod mount;
+
 pub use ctx::*;
 use state::*;
 pub use mount::*;
 
 
-#[cfg(all(feature = "web_clipboard", target_family="wasm"))]
-#[cfg(web_sys_unstable_apis)]
-pub mod web_clipboard;
+#[cfg(feature = "frame_pacing")]
+pub const STD_FRAME_DURATION: time::Duration = time::Duration::from_nanos(10u64.pow(9)/60);
 
 
-// exports
-#[cfg(feature = "frame_timer")]
-use crate::time::Duration;
+#[cfg(any(feature = "app_timer", all(feature = "frame_pacing", not(target_family = "wasm"))))]
+mod timer;
 
-#[cfg(feature = "frame_timer")]
-pub const STD_DURATION: Duration = Duration::from_nanos(1_000_000_000/60);
+
+#[cfg(all(feature = "web_clipboard", target_family="wasm", web_sys_unstable_apis))]
+mod web_clipboard;
+
+#[cfg(all(feature = "web_clipboard", target_family="wasm", web_sys_unstable_apis))]
+pub use web_clipboard::*;
+
+
+// types
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppEventExt {
+  AppInit { window_id: WindowId },
+  #[cfg(feature = "app_waker")] Wake { window_id: WindowId, wake_id: u128 },
+  #[cfg(all(feature = "web_clipboard", target_family="wasm"))] ClipboardFetch { window_id: WindowId },
+  #[cfg(all(feature = "web_clipboard", target_family="wasm"))] ClipboardPaste { window_id: WindowId },
+}
+
+pub type AppEventLoop = EventLoop<AppEventExt>;
+pub type AppEventLoopProxy = EventLoopProxy<AppEventExt>;
+pub type AppEvent = WinitEvent<AppEventExt>;
+pub type AppEventLoopClosed = EventLoopClosed<AppEventExt>;
 
 
 #[derive(Debug, Clone)]
-pub enum AppEvent {
+pub enum Event {
   Resumed,
   Suspended,
   WindowEvent(WindowEvent),
-  DeviceEvent{device_id: DeviceId, event: DeviceEvent},
+  #[cfg(feature = "device_events")] DeviceEvent { device_id: DeviceId, event: DeviceEvent },
+  #[cfg(feature = "app_timer")] Timeout { instant: time::Instant, id: u128 },
+  #[cfg(feature = "app_waker")] Wake(u128),
   #[cfg(all(feature = "web_clipboard", target_family="wasm"))] ClipboardFetch,
   #[cfg(all(feature = "web_clipboard", target_family="wasm"))] ClipboardPaste,
 }
@@ -43,7 +64,7 @@ pub trait AppHandler: Sized + 'static {
 
   fn init(app_ctx: &mut AppCtx, init_data: Self::InitData) -> impl Future<Output=Self>;
 
-  fn event(&mut self, app_ctx: &mut AppCtx, event: &AppEvent);
+  fn event(&mut self, app_ctx: &mut AppCtx, event: &Event);
 }
 
 
@@ -51,7 +72,7 @@ pub trait AppHandler: Sized + 'static {
 // wrapper for fn-handler types
 
 pub struct AppClosure<H> where
-  H: FnMut(&mut AppCtx, &AppEvent) + Sized + 'static
+  H: FnMut(&mut AppCtx, &Event) + Sized + 'static
 {
   handler: H,
 }
@@ -61,7 +82,7 @@ type BoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + 'a>>;
 
 
 impl <H> AppHandler for AppClosure<H> where
-  H: FnMut(&mut AppCtx, &AppEvent) + Sized + 'static
+  H: FnMut(&mut AppCtx, &Event) + Sized + 'static
 {
 
   type InitData = Box<dyn FnOnce(&mut AppCtx) -> BoxFuture<'_, H>>;
@@ -70,7 +91,7 @@ impl <H> AppHandler for AppClosure<H> where
     Self { handler: init_fn(app_ctx).await }
   }
 
-  fn event(&mut self, app_ctx: &mut AppCtx, event: &AppEvent) {
+  fn event(&mut self, app_ctx: &mut AppCtx, event: &Event) {
     (self.handler)(app_ctx, event)
   }
 }
