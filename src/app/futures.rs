@@ -36,7 +36,7 @@ pub use single::*;
 #[cfg(feature = "futures")]
 mod mapped {
   use super::*;
-  use rapidhash::RapidHashMap;
+  use crate::rapidhash::RapidHashMap;
 
   #[derive(Default)]
   pub struct AppFutures {

@@ -92,7 +92,7 @@ pub enum RuntimeEvent<F: Futures, U: EventLike, T: IdLike> {
   Exit,
   FutureReady {id: F::Id, output: <F::Future as Future>::Output},
   UserEvent(U),
-  WindowEvent {window_id: WindowId, event: WindowEvent },
+  WindowEvent {window_id: WindowId, event: WindowEvent},
   #[cfg(feature = "device_events")] DeviceEvent {device_id: DeviceId, event: DeviceEvent},
 
   #[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
