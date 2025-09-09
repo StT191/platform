@@ -89,7 +89,7 @@ impl<T: TouchExt + 'static, const SHRINK_TO:usize, const MAX:usize> Touches<T, S
     pub fn len(&self) -> usize { self.vec.len() }
     pub fn is_empty(&self) -> bool { self.vec.is_empty() }
 
-    pub fn ended(&self) -> usize { self.iter().filter(|reg| reg.ended).count() }
+    pub fn ended(&self) -> usize { self.count(|reg| reg.ended) }
 
     pub fn clear(&mut self, mut pred: impl FnMut(&TouchRegister<T>) -> bool) {
         self.vec.retain(|reg| !pred(reg));
@@ -106,6 +106,10 @@ impl<T: TouchExt + 'static, const SHRINK_TO:usize, const MAX:usize> Touches<T, S
     pub fn iter(&self) -> slice::Iter<'_, TouchRegister<T>> { self.vec.iter() }
     pub fn iter_mut(&mut self) -> slice::IterMut<'_, TouchRegister<T>> { self.vec.iter_mut() }
 
+    pub fn count(&self, mut pred: impl FnMut(&TouchRegister<T>) -> bool) -> usize {
+        self.iter().filter(|reg| pred(reg)).count()
+    }
+
     pub fn by_id<'a>(&'a mut self, id: u64)
         -> iter::Filter<slice::IterMut<'a, TouchRegister<T>>, impl FnMut(&&'a mut TouchRegister<T>) -> bool>
     {
@@ -121,10 +125,11 @@ impl<T: TouchExt + 'static, const SHRINK_TO:usize, const MAX:usize> Touches<T, S
                 // end previous, if id exists
                 self.by_id(touch.id).for_each(|reg| reg.ended = true);
 
-                let location = TouchPos::from_physical_position(touch.location);
-                let force = touch.force.map(normalize_force);
-
                 if self.vec.len() < MAX {
+
+                    let location = TouchPos::from_physical_position(touch.location);
+                    let force = touch.force.map(normalize_force);
+
                     self.vec.push(TouchRegister {
                         id: touch.id, ended: false,
                         ext: T::new(touch.id, location, force),

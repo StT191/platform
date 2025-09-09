@@ -1,15 +1,23 @@
-[package]
-name = "platform"
-version = "1.3.2"
+[workspace.package]
+version = "1.4.0"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 license = "MIT"
 
-[lib]
-name = "platform"
-
 [workspace]
 members = ["rel_path"]
+
+
+[package]
+name = "platform"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.88"
+
+[lib]
+name = "platform"
 
 
 [lints.rust]
@@ -26,7 +34,7 @@ auto_wake_lock = ["wake_lock"]
 wake_lock = ["dep:nosleep", "web-sys/Navigator", "web-sys/WakeLock", "web-sys/WakeLockType", "web-sys/WakeLockSentinel"]
 touches = ["dep:glam"]
 rapidhash = ["rapidhash/std"]
-rng = ["dep:rand", "dep:getrandom", "rapidhash/rng"]
+rng = ["dep:rand", "rapidhash/rng"]
 icon_loader = ["dep:icon-loader", "dep:resvg"]
 web_clipboard = ["web-sys/Clipboard", "web-sys/ClipboardEvent", "web-sys/DataTransfer"]
 directories = ["dep:robius-directories"]
@@ -41,9 +49,8 @@ web-time = "1"
 
 rel_path = { path = "rel_path" }
 
-rapidhash = { version = "1.4", default-features = false, features = ["unsafe"], optional = true }
-rand = { version = "0.9", default-features = false, features = ["os_rng"], optional = true }
-getrandom = { version = "0.3", features = ["wasm_js"], optional = true }
+rapidhash = { version = "3", default-features = false, features = ["unsafe"], optional = true }
+rand = { version = "0.9", default-features = false, optional = true }
 glam = { version = ">=0.29", optional = true }
 
 
