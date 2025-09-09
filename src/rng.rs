@@ -65,7 +65,7 @@ use crate::rapidhash::RapidHasher;
 use std::hash::*;
 
 #[derive(Copy, Clone, Default)]
-pub struct RapidTimeRng { pub hasher: RapidHasher }
+pub struct RapidTimeRng { pub hasher: RapidHasher<'static> }
 
 impl RapidTimeRng {
 
