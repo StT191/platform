@@ -16,7 +16,7 @@ pub use web::*;
 
 // facade type with implicit error-handling
 
-use anyhow::{Result as Res, Error};
+use anyhow::{Result as Res, Error, format_err};
 
 pub struct LocalStorageFacade {
     inner: Res<LocalStorage>,
@@ -30,6 +30,13 @@ impl LocalStorageFacade {
     pub fn new(qualifier: &str, organization: &str, application: &str, error_handler: impl Fn(&Error) + 'static) -> Self {
         let inner = LocalStorage::new(qualifier, organization, application).inspect_err(&error_handler);
         Self { inner, error_handler: Box::new(error_handler) }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            inner: Err(format_err!("Empty LocalStorageFacade")),
+            error_handler: Box::new(|_err| {}),
+        }
     }
 
     pub fn set(&self, key: &str, value: &str) {
