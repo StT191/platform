@@ -70,6 +70,25 @@ pub fn mount_window(window: &Window) {
 
 
 // extension
+pub trait WithAppNameExtension {
+    fn with_app_name(self, app_name: &str) -> Self;
+}
+
+impl WithAppNameExtension for WindowAttributes {
+
+    #[allow(unused_variables, unused_mut)]
+    fn with_app_name(mut self, app_name: &str) -> Self {
+
+        #[cfg(target_os = "linux")] {
+            self = winit::platform::wayland::WindowAttributesExtWayland::with_name(self, app_name, app_name);
+            self = winit::platform::x11::WindowAttributesExtX11::with_name(self, app_name, app_name);
+        }
+
+        self
+    }
+}
+
+
 
 use crate::time::{Instant, Duration};
 
