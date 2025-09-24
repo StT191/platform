@@ -50,7 +50,7 @@ mod mapped {
   impl RuntimeFutures for AppFutures {
 
     type Id = AppFutureId;
-    type Future = BoxFuture<'static, ()>;
+    type Future = AppFuture;
 
     fn new() -> Self { Default::default() }
 
