@@ -1,24 +1,31 @@
 
 use anyhow::{Result as Res, Context, anyhow};
 use crate::directories::ProjectDirs;
-use std::{path::PathBuf, fs, io::{self, ErrorKind::NotFound}};
+use std::{path::{Path, PathBuf}, fs, io::{self, ErrorKind::NotFound}};
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalStorage {
     storage_dir: PathBuf,
 }
 
 impl LocalStorage {
 
+    pub fn path(&self) -> &Path { self.storage_dir.as_ref() }
+
+    pub fn from_path(storage_dir: PathBuf) -> Res<Self> {
+
+        fs::create_dir_all(&storage_dir).with_context(|| format!("couldn't acquire storage dir {:?}", storage_dir.display()))?;
+
+        Ok(Self {storage_dir})
+    }
+
     pub fn new(qualifier: &str, organization: &str, application: &str) -> Res<Self> {
 
         let project_dirs = ProjectDirs::from(qualifier, organization, application).context("failed to acquire ProjectDirs")?;
         let storage_dir: PathBuf = project_dirs.config_local_dir().into();
 
-        fs::create_dir_all(&storage_dir).with_context(|| format!("couldn't acquire storage dir {:?}", storage_dir.display()))?;
-
-        Ok(Self {storage_dir})
+        Self::from_path(storage_dir)
     }
 
     pub fn set(&self, key: &str, value: &str) -> Res<()> {

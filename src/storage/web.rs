@@ -3,7 +3,7 @@ use anyhow::{Result as Res, Context, anyhow};
 use web_sys::Storage;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalStorage {
     storage: Storage,
 }
