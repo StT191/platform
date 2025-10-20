@@ -1,6 +1,6 @@
 
 use std::{fmt::Debug, marker::Sync, hash::Hash};
-use winit::{window::WindowId, event::{*, Event}, event_loop::*, application::ApplicationHandler};
+use winit::{window::WindowId, event::*, event_loop::*, application::ApplicationHandler};
 use crate::*;
 
 // mods
@@ -10,16 +10,16 @@ pub use futures::{Futures as RuntimeFutures, FutureRuntime};
 use RuntimeFutures as Futures;
 
 
-#[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
+#[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
 mod timer;
 
-#[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
+#[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
 pub use self::{
-  timer::{RuntimeTimer, Timer},
+  timer::{RuntimeTimer, Timer, TimeoutResult},
   futures::{AsyncTimeoutId, AsyncTimeout, AsyncTimer},
 };
 
-#[cfg(not(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm")))))]
+#[cfg(not(any(feature="timeout", feature="async_timeout", feature="frame_pacing")))]
 pub type RuntimeTimer<T> = std::marker::PhantomData<T>;
 
 
@@ -72,10 +72,10 @@ impl<F: Futures, U: EventLike, T: IdLike> RuntimeCtx<F, U, T> {
 
   pub(super) fn new(event_loop_proxy: RuntimeEventLoopProxy<F::Id, U>) -> Self {
     Self {
-      #[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
+      #[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
       timer: std::rc::Rc::new(Timer::new().into()),
 
-      #[cfg(not(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm")))))]
+      #[cfg(not(any(feature="timeout", feature="async_timeout", feature="frame_pacing")))]
       timer: std::marker::PhantomData,
 
       futures: FutureRuntime::new(event_loop_proxy.clone()),
@@ -85,7 +85,7 @@ impl<F: Futures, U: EventLike, T: IdLike> RuntimeCtx<F, U, T> {
 }
 
 
-#[derive(Debug)]
+#[derive(derive_more::Debug)]
 pub enum RuntimeEvent<F: Futures, U: EventLike, T: IdLike> {
   Resumed,
   Suspended,
@@ -95,12 +95,13 @@ pub enum RuntimeEvent<F: Futures, U: EventLike, T: IdLike> {
   WindowEvent {window_id: WindowId, event: WindowEvent},
   #[cfg(feature = "device_events")] DeviceEvent {device_id: DeviceId, event: DeviceEvent},
 
-  #[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
+  #[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
   Timeout {id: T, instant: time::Instant},
 
-  #[cfg(not(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm")))))]
+  #[cfg(not(any(feature="timeout", feature="async_timeout", feature="frame_pacing")))]
   Timeout((!, std::marker::PhantomData<T>)),
 }
+
 
 pub trait Runtime: 'static {
 
@@ -154,98 +155,64 @@ impl<R: Runtime> RuntimeMount<R> {
     Self::new(event_loop.create_proxy(), runtime).run(event_loop);
   }
 
-  pub fn event(&mut self, event_loop: &ActiveEventLoop, event: Event<RuntimeEventExt<R::FutureId, R::UserEvent>>) {
+  pub fn event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeEvent<R::Futures, R::UserEvent, R::TimeoutId>) {
 
-    let &mut Self { ref mut ctx, ref mut runtime, .. } = self;
+    self.runtime.event(event_loop, &mut self.ctx, event);
 
-    let mut check_timer = true;
-
-    match event {
-
-      #[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
-      Event::NewEvents(StartCause::ResumeTimeReached {..}) => {
-        if let Some(timer::Timeout {id, instant}) = {ctx.timer.borrow_mut().pop_timeout()} {
-          runtime.event(event_loop, ctx, RuntimeEvent::Timeout {id, instant});
-        }
-        else { check_timer = false }
-      },
-
-      Event::WindowEvent {window_id: id, event} => runtime.event(event_loop, ctx, RuntimeEvent::WindowEvent {window_id: id, event}),
-
-      Event::UserEvent(RuntimeEventExt::WakeFuture(id)) => {
-        if let Some(output) = ctx.futures.poll(&id) {
-          runtime.event(event_loop, ctx, RuntimeEvent::FutureReady {id, output})
-        }
-        else { check_timer = false }
-      },
-
-      Event::UserEvent(RuntimeEventExt::UserEvent(event)) => {
-        runtime.event(event_loop, ctx, RuntimeEvent::UserEvent(event))
-      },
-
-      #[cfg(feature = "device_events")]
-      Event::DeviceEvent {device_id, event} => runtime.event(event_loop, ctx, RuntimeEvent::DeviceEvent{device_id, event}),
-
-      Event::Resumed => runtime.event(event_loop, ctx, RuntimeEvent::Resumed),
-
-      Event::Suspended => runtime.event(event_loop, ctx, RuntimeEvent::Suspended),
-
-      Event::LoopExiting => {
-        runtime.event(event_loop, ctx, RuntimeEvent::Exit);
-        check_timer = false;
-      },
-
-      _ => { check_timer = false },
-
-    };
-
-    #[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
-    if check_timer {
-      if let Some(set_instant) = ctx.timer.borrow_mut().take_set_instant() {
-        match set_instant {
-          Some(instant) => event_loop.set_wait_until(instant),
-          None => event_loop.set_wait(),
-        }
+    #[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
+    if let Some(set_instant) = self.ctx.timer.borrow_mut().take_set_instant() {
+      match set_instant {
+        Some(instant) => event_loop.set_wait_until(instant),
+        None => event_loop.set_wait(),
       }
     }
-
-    #[cfg(not(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm")))))]
-    let _ = check_timer;
-
   }
-
 }
 
 
 impl<R: Runtime> ApplicationHandler<RuntimeEventExt<R::FutureId, R::UserEvent>> for RuntimeMount<R> {
 
+  #[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
   fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-    self.event(event_loop, Event::NewEvents(cause));
+    if matches!(cause, StartCause::ResumeTimeReached {..}) {
+      if let Some(timer::Timeout {id, instant}) = { self.ctx.timer.borrow_mut().pop_timeout() } {
+        self.event(event_loop, RuntimeEvent::Timeout {id, instant});
+      }
+    }
   }
 
   fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-    self.event(event_loop, Event::Resumed);
+    self.event(event_loop, RuntimeEvent::Resumed);
   }
 
   fn suspended(&mut self, event_loop: &ActiveEventLoop) {
-    self.event(event_loop, Event::Suspended);
+    self.event(event_loop, RuntimeEvent::Suspended);
   }
 
   fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeEventExt<R::FutureId, R::UserEvent>) {
-    self.event(event_loop, Event::UserEvent(event));
+    match event {
+      RuntimeEventExt::WakeFuture(id) => {
+        if let Some(output) = self.ctx.futures.poll(&id) {
+          self.event(event_loop, RuntimeEvent::FutureReady {id, output});
+        }
+      },
+      RuntimeEventExt::UserEvent(event) => {
+        self.event(event_loop, RuntimeEvent::UserEvent(event));
+      },
+    }
   }
 
   fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
-    self.event(event_loop, Event::WindowEvent { window_id, event });
+    self.event(event_loop, RuntimeEvent::WindowEvent { window_id, event });
   }
 
   fn exiting(&mut self, event_loop: &ActiveEventLoop) {
-    self.event(event_loop, Event::LoopExiting);
+    self.event(event_loop, RuntimeEvent::Exit);
   }
 
   #[cfg(feature = "device_events")]
   fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
-    self.event(event_loop, Event::DeviceEvent { device_id, event });
+    self.event(event_loop, RuntimeEvent::DeviceEvent { device_id, event });
   }
 
 }

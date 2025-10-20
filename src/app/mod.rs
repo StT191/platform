@@ -38,7 +38,7 @@ pub enum AppEventExt<U: EventLike = !> {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AppTimeoutId {
   #[cfg(feature = "timeout")] User(u64),
-  #[cfg(all(feature = "frame_pacing", not(target_family = "wasm")))] FrameRequest(WindowId),
+  #[cfg(feature = "frame_pacing")] FrameRequest(WindowId),
   #[cfg(feature = "async_timeout")] Async(AsyncTimeoutId),
 }
 

@@ -71,7 +71,7 @@ mod mapped {
 
     fn clean(&mut self) {
       // shrink hash-map if advisable
-      if self.futures.len() < self.futures.capacity() / 4 {
+      if self.futures.len() <= self.futures.capacity() / 4 {
         self.futures.shrink_to((self.futures.capacity() / 2).max(1024));
       }
     }

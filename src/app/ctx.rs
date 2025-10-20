@@ -36,8 +36,9 @@ pub struct AppCtx<U: EventLike = !> {
   #[cfg(any(feature = "timeout", feature = "async_timeout", feature = "frame_pacing"))]
   pub(super) timer: AppTimer,
 
-  #[cfg(feature = "frame_pacing")] pub(super) frame_request: bool,
   #[cfg(feature = "frame_pacing")] pub(super) frame_time: Instant,
+  #[cfg(feature = "frame_pacing")] pub(super) schedule_frame: bool,
+  #[cfg(feature = "frame_pacing")] pub(super) frame_timeout: Option<Instant>,
 
   #[cfg(feature = "frame_pacing")] manual_frame_duration: Option<Duration>,
   #[cfg(feature = "frame_pacing")] monitor_frame_duration: Option<Duration>,
@@ -75,11 +76,12 @@ impl<U: EventLike> AppCtx<U> {
       #[cfg(any(feature = "timeout", feature = "async_timeout", feature = "frame_pacing"))]
       timer,
 
-      #[cfg(feature = "frame_pacing")] frame_request: false,
+      #[cfg(feature = "frame_pacing")] frame_time: Instant::now(),
+      #[cfg(feature = "frame_pacing")] schedule_frame: false,
+      #[cfg(feature = "frame_pacing")] frame_timeout: None,
       #[cfg(feature = "frame_pacing")] manual_frame_duration: None,
       #[cfg(feature = "frame_pacing")] monitor_frame_duration: None,
       #[cfg(feature = "frame_pacing")] frame_duration: STD_FRAME_DURATION,
-      #[cfg(feature = "frame_pacing")] frame_time: Instant::now(),
       #[cfg(feature = "auto_wake_lock")] auto_wake_lock: false,
       exit: false,
 
@@ -98,10 +100,6 @@ impl<U: EventLike> AppCtx<U> {
 
 
 // timeout feature
-
-#[cfg(feature = "timeout")]
-use std::ops::ControlFlow;
-
 #[cfg(feature = "timeout")]
 impl<U: EventLike> AppCtx<U> {
 
@@ -109,23 +107,23 @@ impl<U: EventLike> AppCtx<U> {
     self.timer.borrow().get_timeout(&AppTimeoutId::User(id))
   }
 
-  pub fn set_timeout(&mut self, id: u64, instant: Instant) -> Option<Instant> {
+  pub fn set_timeout(&mut self, id: u64, instant: Instant) -> TimeoutResult {
     self.timer.borrow_mut().set_timeout(AppTimeoutId::User(id), instant)
   }
 
-  pub fn set_timeout_earlier(&mut self, id: u64, instant: Instant) -> ControlFlow<Instant, Option<Instant>> {
+  pub fn set_timeout_earlier(&mut self, id: u64, instant: Instant) -> TimeoutResult {
     self.timer.borrow_mut().set_timeout_earlier(AppTimeoutId::User(id), instant)
   }
 
-  pub fn set_timeout_wait(&mut self, id: u64, duraion: Duration) -> Option<Instant> {
+  pub fn set_timeout_wait(&mut self, id: u64, duraion: Duration) -> TimeoutResult {
     self.timer.borrow_mut().set_timeout_wait(AppTimeoutId::User(id), duraion)
   }
 
-  pub fn set_timeout_wait_earlier(&mut self, id: u64, duraion: Duration) -> ControlFlow<Instant, Option<Instant>> {
+  pub fn set_timeout_wait_earlier(&mut self, id: u64, duraion: Duration) -> TimeoutResult {
     self.timer.borrow_mut().set_timeout_wait_earlier(AppTimeoutId::User(id), duraion)
   }
 
-  pub fn cancel_timeout(&mut self, id: u64, if_later: Option<Instant>) -> ControlFlow<Option<Instant>, Instant> {
+  pub fn cancel_timeout(&mut self, id: u64, if_later: Option<Instant>) -> TimeoutResult {
     self.timer.borrow_mut().cancel_timeout(&AppTimeoutId::User(id), if_later)
   }
 }
@@ -156,11 +154,34 @@ impl<U: EventLike> AppCtx<U> {
 #[cfg(feature = "frame_pacing")]
 impl<U: EventLike> AppCtx<U> {
 
-  pub fn request_frame(&mut self) { self.frame_request = true; }
-
   pub fn frame_time(&self) -> Instant { self.frame_time }
 
-  #[cfg(not(target_family = "wasm"))]
+  pub fn frame_timeout(&self) -> Option<Instant> { self.frame_timeout }
+
+  pub fn schedule_frame(&mut self, instant: Instant) {
+
+    let set_instant = match self.frame_timeout {
+      Some(other) if other <= instant => None,
+      // if no previous or earlier than previous
+      _ => Some(instant),
+    };
+
+    if set_instant.is_some() {
+      self.frame_timeout = set_instant;
+      self.schedule_frame = true;
+    }
+  }
+
+  pub fn schedule_frame_timeout(&mut self, duraion: Duration) {
+    if let Some(instant) = Instant::now().checked_add(duraion) {
+      self.schedule_frame(instant);
+    }
+  }
+
+  pub fn request_frame(&mut self) {
+    self.schedule_frame(self.frame_time + self.frame_duration);
+  }
+
   pub fn sync_frame_time(&mut self, instant: Instant) {
     self.frame_time = instant.min(Instant::now() + self.frame_duration);
   }

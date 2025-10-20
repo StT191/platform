@@ -115,38 +115,44 @@ impl ControlFlowExtension for ActiveEventLoop {
 }
 
 
-pub trait WindowExtFrameDuration {
+pub trait WindowExtFrameRate {
+    fn refresh_rate_millihertz(&self) -> Option<u32>;
     fn frame_duration(&self) -> Option<Duration>;
 }
 
-impl WindowExtFrameDuration for Window {
-    fn frame_duration(&self) -> Option<Duration> {
+impl WindowExtFrameRate for Window {
+
+    fn refresh_rate_millihertz(&self) -> Option<u32> {
 
         // try current monitor
-        let rt_hz = self.current_monitor().and_then(|m| m.refresh_rate_millihertz());
+        let rt_mhz = self.current_monitor().and_then(|m| m.refresh_rate_millihertz());
 
         // try if there is only one monitor
-        let rt_hz = rt_hz.or_else(|| {
+        rt_mhz.or_else(|| {
 
             let mut count = 0;
-            let mut rt_hz = None;
+            let mut rt_mhz = None;
 
             for monitor in self.available_monitors() {
 
                 count += 1;
-                let this_rt_hz = monitor.refresh_rate_millihertz();
+                let this_rt_mhz = monitor.refresh_rate_millihertz();
 
-                if this_rt_hz.is_none() || count > 1 && this_rt_hz != rt_hz {
+                if this_rt_mhz.is_none() || count > 1 && this_rt_mhz != rt_mhz {
                     return None;
                 }
                 else {
-                    rt_hz = this_rt_hz;
+                    rt_mhz = this_rt_mhz;
                 }
             }
 
-            rt_hz
-        })?;
-
-        Some(Duration::from_nanos(10_u64.pow(12) / rt_hz as u64))
+            rt_mhz
+        })
     }
+
+    fn frame_duration(&self) -> Option<Duration> {
+        let rt_mhz = self.refresh_rate_millihertz()?;
+        Some(Duration::from_nanos(10_u64.pow(12) / rt_mhz as u64))
+    }
+
 }
