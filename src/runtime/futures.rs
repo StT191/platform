@@ -55,13 +55,16 @@ impl<F: Futures, U: EventLike> FutureRuntime<F, U> {
 
   pub fn poll(&self, id: &F::Id) -> Option<<F::Future as Future>::Output> {
 
+    let Some(mut future) = self.futures.borrow_mut().fetch(id) else {
+      log::error!("future {id:?} not found");
+      return None;
+    };
+
     let waker = Arc::new(RuntimeFutureWaker {
       id: id.clone(), event_loop_proxy: self.event_loop_proxy.clone(),
     }).into();
 
     let mut context = Context::from_waker(&waker);
-
-    let mut future = self.futures.borrow_mut().fetch(id).unwrap();
 
     match Pin::new(&mut future).poll(&mut context) {
       Poll::Ready(res) => {
@@ -93,7 +96,7 @@ impl<F: Futures, U: EventLike> FutureRuntime<F, U> {
 
 
 // timeout
-#[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
+#[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
 mod async_timeout {
 
   use super::*;
@@ -167,5 +170,5 @@ mod async_timeout {
 
 }
 
-#[cfg(any(feature="timeout", feature="async_timeout", all(feature="frame_pacing", not(target_family="wasm"))))]
+#[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
 pub use async_timeout::*;

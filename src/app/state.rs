@@ -10,8 +10,7 @@ use crate::time::*;
 
 
 pub(super) struct AppState<App: AppHandler> {
-  #[cfg(feature = "frame_pacing")] frame_requested: DetectChanges<bool>,
-  #[cfg(all(feature = "frame_pacing", not(target_family = "wasm")))] redraw_requested: bool,
+  #[cfg(feature = "frame_pacing")] redraw_requested: bool,
   #[cfg(feature = "auto_wake_lock")] wake_lock: Option<WakeLock>,
   #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges<bool>,
   window_id: WindowId,
@@ -23,8 +22,7 @@ impl<App: AppHandler> AppState<App> {
 
   pub fn new(app_ctx: AppCtx<App::UserEvent>, app: App) -> Self {
     Self {
-      #[cfg(feature = "frame_pacing")] frame_requested: DetectChanges::new(false),
-      #[cfg(all(feature = "frame_pacing", not(target_family = "wasm")))] redraw_requested: false,
+      #[cfg(feature = "frame_pacing")] redraw_requested: false,
       #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new().map_err(|m| log::warn!("{m:?}")).ok(),
       #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges::new(false),
 
@@ -64,7 +62,7 @@ impl<App: AppHandler> AppState<App> {
       #[cfg(feature = "async_timeout")]
       AppEvent::Timeout {id: AppTimeoutId::Async(wake_id), ..} => wake_id.wake(),
 
-      #[cfg(all(feature = "frame_pacing", not(target_family = "wasm")))]
+      #[cfg(feature = "frame_pacing")]
       AppEvent::Timeout {id: AppTimeoutId::FrameRequest(id), instant} if id == self.window_id => {
         app_ctx.frame_time = instant;
         app_ctx.window.request_redraw();
@@ -105,31 +103,20 @@ impl<App: AppHandler> AppState<App> {
           #[cfg(feature = "frame_pacing")]
           WindowEvent::RedrawRequested => {
 
-            #[cfg(target_family = "wasm")] {
+            if app_ctx.frame_timeout.is_none() || !self.redraw_requested {
+              // no frame was requested or frame_request-timeout is still in progress
               app_ctx.frame_time = Instant::now();
             }
 
-            #[cfg(not(target_family = "wasm"))] {
-              if *self.frame_requested.state() {
-                // frame_request-timeout is still in progress, wait till finished
-                if !self.redraw_requested { return; }
-              }
-              else {
-                app_ctx.frame_time = Instant::now();
-              }
-
-              self.redraw_requested = false;
-            }
-
-            app_ctx.frame_request = false;
-            self.frame_requested.set_state(false);
+            self.redraw_requested = false;
+            app_ctx.frame_timeout = None;
           },
 
           WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged {..} => {
             app_ctx.window.request_redraw();
           },
 
-          #[cfg(all(feature = "frame_pacing", not(target_family = "wasm")))]
+          #[cfg(feature = "frame_pacing")]
           WindowEvent::Moved(_) => {
             app_ctx.fetch_monitor_frame_duration();
           },
@@ -164,26 +151,22 @@ impl<App: AppHandler> AppState<App> {
     let app_ctx = &mut self.app_ctx;
 
     #[cfg(feature = "frame_pacing")]
-    if self.frame_requested.note_change(&app_ctx.frame_request) {
-      #[cfg(target_family = "wasm")] {
-        app_ctx.frame_request = false;
+    if app_ctx.schedule_frame {
+
+      app_ctx.schedule_frame = false;
+
+      let instant = app_ctx.frame_timeout.expect("frame_timeout needs to be set when scheduling a frame");
+      let now = Instant::now();
+
+      if instant > now {
+        let _ = app_ctx.timer.borrow_mut().set_timeout_earlier(
+          AppTimeoutId::FrameRequest(self.window_id),
+          instant
+        );
+      } else {
+        app_ctx.frame_time = now;
         app_ctx.window.request_redraw();
-      }
-      #[cfg(not(target_family = "wasm"))] {
-
-        let instant = app_ctx.frame_time + app_ctx.frame_duration;
-        let now = Instant::now();
-
-        if instant > now {
-          let _ = app_ctx.timer.borrow_mut().set_timeout_earlier(
-            AppTimeoutId::FrameRequest(self.window_id),
-            instant
-          );
-        } else {
-          app_ctx.frame_time = now;
-          app_ctx.window.request_redraw();
-          self.redraw_requested = true;
-        }
+        self.redraw_requested = true;
       }
     }
 
