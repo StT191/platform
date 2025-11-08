@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.5.0"
+version = "1.5.1"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -52,16 +52,16 @@ rel_path = { path = "rel_path" }
 
 rapidhash = { version = "4", default-features = false, features = ["unsafe"], optional = true }
 rand = { version = "0.9", default-features = false, optional = true }
-glam = { version = ">=0.29", optional = true }
+glam = { version = "0.30", optional = true }
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
 icon-loader = { version = "0.4", optional = true }
-resvg = { version = "0.43", optional = true }
+resvg = { version = "0.45", optional = true }
 
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-pollster = "0.3"
+pollster = "0.4"
 simple_logger = "5"
 
 robius-directories = { version = "5", optional = true }
