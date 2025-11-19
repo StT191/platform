@@ -33,7 +33,7 @@ fn norm_path(path: &Path) -> PathBuf {
 }
 
 fn path_literal(path: &Path) -> TokenStream {
-    let token: TokenTree = Literal::string(&path.to_str().unwrap()).into();
+    let token: TokenTree = Literal::string(path.to_str().unwrap()).into();
     token.into()
 }
 
@@ -90,5 +90,5 @@ pub fn canonical_path(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn __expand_as_compile_error(input: TokenStream) -> TokenStream {
     let input_str = input.expand_expr().unwrap().to_string();
-    return quote!{compile_error!(#input_str)}.into()
+    quote!{compile_error!(#input_str)}.into()
 }

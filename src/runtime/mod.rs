@@ -174,10 +174,10 @@ impl<R: Runtime> ApplicationHandler<RuntimeEventExt<R::FutureId, R::UserEvent>> 
 
   #[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
   fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
-    if matches!(cause, StartCause::ResumeTimeReached {..}) {
-      if let Some(timer::Timeout {id, instant}) = { self.ctx.timer.borrow_mut().pop_timeout() } {
-        self.event(event_loop, RuntimeEvent::Timeout {id, instant});
-      }
+    if matches!(cause, StartCause::ResumeTimeReached {..}) &&
+      let Some(timer::Timeout {id, instant}) = { self.ctx.timer.borrow_mut().pop_timeout() }
+    {
+      self.event(event_loop, RuntimeEvent::Timeout {id, instant});
     }
   }
 

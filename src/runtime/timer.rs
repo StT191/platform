@@ -135,13 +135,11 @@ impl<Id: IdLike> Timer<Id> {
 
   pub(super) fn pop_timeout(&mut self) -> Option<Timeout<Id>> {
 
-    if let Some(timeout) = self.queue.front() {
-      if timeout.instant <= Instant::now() {
-        let popped = self.queue.pop_front();
-        self.set_instant = Some(self.earliest_instant());
-        self.shrink_queue();
-        return popped;
-      }
+    if let Some(timeout) = self.queue.front() && timeout.instant <= Instant::now() {
+      let popped = self.queue.pop_front();
+      self.set_instant = Some(self.earliest_instant());
+      self.shrink_queue();
+      return popped;
     }
 
     None

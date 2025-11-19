@@ -51,9 +51,9 @@ impl LocalStorageFacade {
     }
 
     pub fn get(&self, key: &str) -> Option<String> {
-        self.inner.as_ref().ok().map(|storage|
-            storage.get(key).inspect_err(&self.error_handler).ok().flatten()
-        ).flatten()
+        self.inner.as_ref().ok().and_then(
+            |storage| storage.get(key).inspect_err(&self.error_handler).ok().flatten()
+        )
     }
 
     pub fn remove(&self, key: &str) {
