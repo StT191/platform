@@ -31,8 +31,12 @@ use crate::time::*;
 
 pub struct AppCtx<U: EventLike = !> {
 
+  // pub
   #[cfg(feature = "futures")] pub futures: AppFutureSpawner<U>,
+  #[cfg(feature = "auto_wake_lock")] pub auto_wake_lock: bool,
+  pub exit: bool,
 
+  // private
   #[cfg(any(feature = "timeout", feature = "async_timeout", feature = "frame_pacing"))]
   pub(super) timer: AppTimer,
 
@@ -43,10 +47,6 @@ pub struct AppCtx<U: EventLike = !> {
   #[cfg(feature = "frame_pacing")] manual_frame_duration: Option<Duration>,
   #[cfg(feature = "frame_pacing")] monitor_frame_duration: Option<Duration>,
   #[cfg(feature = "frame_pacing")] pub(super) frame_duration: Duration,
-
-  #[cfg(feature = "auto_wake_lock")] pub auto_wake_lock: bool,
-
-  pub exit: bool,
 
   pub(super) event_dispatcher: AppCtxEventDispatcher<U>,
 

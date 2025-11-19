@@ -1,3 +1,4 @@
+#![allow(clippy::should_implement_trait)]
 
 // export
 pub use rand::{*, Rng as RngTrait};
@@ -20,7 +21,7 @@ pub trait WithEntropy: Sized {
     fn reseed_with_entropy(&mut self) { *self = Self::with_entropy() }
 }
 
-impl<Rng: SeedableRng> WithEntropy for Rng {
+impl<R: SeedableRng> WithEntropy for R {
     #[inline]
     fn with_entropy() -> Self { Self::seed_from_u64(entropy()) }
 }

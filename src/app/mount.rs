@@ -5,6 +5,7 @@ use std::{mem::replace, sync::mpsc::{Receiver, sync_channel}};
 use crate::*;
 use super::*;
 
+#[allow(clippy::large_enum_variant)]
 enum MountState<App: AppHandler> {
   Init {
     event_queue: Vec<AppEvent<App::UserEvent>>,
