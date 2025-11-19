@@ -25,15 +25,24 @@ pub fn event_loop<T>() -> EventLoop<T> {
 }
 
 
-pub fn window(event_loop: &ActiveEventLoop, window_attributes: WindowAttributes) -> Window {
-
-    #[cfg(not(target_family="wasm"))] {
-        event_loop.create_window(window_attributes).unwrap()
-    }
+pub fn window(event_loop: &ActiveEventLoop, mut window_attributes: WindowAttributes) -> Window {
 
     #[cfg(target_family="wasm")] {
-        event_loop.create_window(window_attributes.with_prevent_default(false)).unwrap()
+        window_attributes = window_attributes.with_prevent_default(false);
     }
+
+    let set_window_invisible = !window_attributes.visible && {
+        window_attributes.visible = true; // set after window creation
+        true
+    };
+
+    let window = event_loop.create_window(window_attributes).unwrap();
+
+    if set_window_invisible {
+        window.set_visible(false);
+    }
+
+    window
 }
 
 
