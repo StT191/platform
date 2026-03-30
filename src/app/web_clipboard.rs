@@ -3,8 +3,7 @@ use winit::window::WindowId;
 use std::{rc::Rc, cell::RefCell};
 use crate::{*};
 use web_sys::{Clipboard as DomClipboard, ClipboardEvent};
-use js_sys::Function;
-use wasm_bindgen_futures::JsFuture;
+use js_sys::{Function, futures::{JsFuture}};
 use wasm_bindgen::{JsValue, closure::Closure};
 
 
@@ -138,7 +137,7 @@ impl WebClipboard {
         let dispatcher = dispatcher.clone();
         let window_id = *window_id;
 
-        wasm_bindgen_futures::spawn_local(async move {
+        js_sys::futures::spawn_local(async move {
           content.replace(
             JsFuture::from(promise).await
             .map_err(|m| log::error!("{m:?}")).ok()
@@ -148,7 +147,7 @@ impl WebClipboard {
         });
       }
       else {
-        wasm_bindgen_futures::spawn_local(async move {
+        js_sys::futures::spawn_local(async move {
           content.replace(
             JsFuture::from(promise).await
             .map_err(|m| log::error!("{m:?}")).ok()

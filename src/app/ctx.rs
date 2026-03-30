@@ -21,7 +21,6 @@ impl<U: EventLike> AppFutureSpawner<U> {
   pub fn cancel(&mut self, id: &AppFutureId) {
     self.futures.cancel(id)
   }
-
 }
 
 
@@ -145,7 +144,6 @@ impl<U: EventLike> AppCtx<U> {
   pub fn async_timer(&self) -> AsyncTimer<AppTimeoutId> {
     AsyncTimer::new(self.timer.clone())
   }
-
 }
 
 
@@ -206,7 +204,6 @@ impl<U: EventLike> AppCtx<U> {
   pub fn monitor_frame_duration(&mut self) -> Option<Duration> { self.monitor_frame_duration }
 
   pub fn frame_duration(&mut self) -> Duration { self.frame_duration }
-
 }
 
 

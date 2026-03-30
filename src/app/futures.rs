@@ -61,7 +61,7 @@ mod mapped {
     fn spawn(&mut self, future: Self::Future) -> Self::Id {
       let id = self.next_id;
       self.futures.insert(id, future);
-      self.next_id += 1;
+      self.next_id = id.wrapping_add(1);
       AppFutureId(id)
     }
 
@@ -71,9 +71,7 @@ mod mapped {
 
     fn clean(&mut self) {
       // shrink hash-map if advisable
-      if self.futures.len() <= self.futures.capacity() / 4 {
-        self.futures.shrink_to((self.futures.capacity() / 2).max(1024));
-      }
+      shrink_capacity!(self.futures, 512);
     }
   }
 }

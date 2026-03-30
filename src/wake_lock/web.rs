@@ -2,7 +2,7 @@
 use std::{rc::Rc, cell::RefCell};
 use anyhow::{Result as Res, Context, bail};
 use wasm_bindgen::{JsValue};
-use wasm_bindgen_futures::{JsFuture};
+use js_sys::futures::{JsFuture};
 use web_sys::{WakeLock as WebWakeLock, WakeLockType, WakeLockSentinel};
 
 pub struct WakeLock {
@@ -33,9 +33,9 @@ impl WakeLock {
         let lock = Rc::clone(&self.lock);
         let promise = self.locker.request(WakeLockType::Screen);
 
-        wasm_bindgen_futures::spawn_local(async move {
+        js_sys::futures::spawn_local(async move {
             if let Ok(res) = JsFuture::from(promise).await {
-                lock.replace(Some(WakeLockSentinel::from(res)));
+                lock.replace(Some(res));
             }
         });
 

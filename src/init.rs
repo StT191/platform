@@ -5,18 +5,17 @@ use winit::window::{Window, WindowAttributes};
 #[cfg(target_family="wasm")]
 use winit::platform::web::{WindowExtWebSys, WindowAttributesExtWebSys};
 
-use crate::LogLevel;
+use crate::LogFilter;
+use anyhow::Context;
 
 
-pub fn init(log_level: LogLevel) {
-    #[cfg(not(target_family="wasm"))] {
-        simple_logger::init_with_level(log_level).unwrap();
-    }
+pub fn init(log_filter: impl Into<LogFilter>) {
 
     #[cfg(target_family="wasm")] {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-        console_log::init_with_level(log_level).expect("could not initialize logger");
     }
+
+    log_filter.into().init().context("could not initialize logger").unwrap();
 }
 
 

@@ -1,6 +1,6 @@
 
 use std::{rc::Rc, cell::RefCell, collections::VecDeque};
-use crate::time::{Instant, Duration};
+use crate::{time::{Instant, Duration}, shrink_capacity};
 
 use super::IdLike;
 
@@ -127,18 +127,12 @@ impl<Id: IdLike> Timer<Id> {
   }
 
 
-  fn shrink_queue(&mut self) {
-    if self.queue.len() <= self.queue.capacity() / 4 {
-      self.queue.shrink_to((self.queue.capacity() / 2).max(1024));
-    }
-  }
-
   pub(super) fn pop_timeout(&mut self) -> Option<Timeout<Id>> {
 
     if let Some(timeout) = self.queue.front() && timeout.instant <= Instant::now() {
       let popped = self.queue.pop_front();
       self.set_instant = Some(self.earliest_instant());
-      self.shrink_queue();
+      shrink_capacity!(self.queue, 256);
       return popped;
     }
 

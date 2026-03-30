@@ -6,7 +6,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output=T> + 'a>>;
 
 pub fn spawn_local<F: Future<Output = ()> + 'static>(future: F) {
     #[cfg(not(target_family="wasm"))] pollster::block_on(future);
-    #[cfg(target_family="wasm")] wasm_bindgen_futures::spawn_local(future);
+    #[cfg(target_family="wasm")] js_sys::futures::spawn_local(future);
 }
 
 

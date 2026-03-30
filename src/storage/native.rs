@@ -1,7 +1,7 @@
 
 use anyhow::{Result as Res, Context, anyhow};
 use crate::directories::ProjectDirs;
-use std::{path::{Path, PathBuf}, fs, io::{self, ErrorKind::NotFound}};
+use std::{path::{Path, PathBuf}, fs, io::ErrorKind::NotFound};
 
 
 #[derive(Debug, Clone)]
@@ -62,12 +62,10 @@ impl LocalStorage {
             Ok(entry) => {
                 let path = entry.path();
 
-                if let Err(err) = |entry: fs::DirEntry| -> io::Result<()> {
-                    if entry.metadata()?.is_file() {
-                        fs::remove_file(&path)?;
-                    }
-                    Ok(())
-                } (entry) {
+                if let Err(err) = entry.metadata().and_then(|meta| {
+                    if meta.is_file() { fs::remove_file(&path) }
+                    else { Ok(()) }
+                }) {
                     errors.push(format!("{:?}", anyhow!("{:?}: {:?}", path.display(), err)));
                 }
             }
