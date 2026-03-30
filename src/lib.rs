@@ -3,7 +3,6 @@
 // re-exports
 pub use winit;
 pub use web_time as time;
-pub use log::{self, Level as LogLevel};
 pub use rel_path::*;
 
 #[cfg(not(target_family="wasm"))]
@@ -14,6 +13,9 @@ pub use robius_directories as directories;
 
 // mods
 pub mod anyhow; // als re-exports the anyhow crate
+
+mod logger;
+pub use logger::*;
 
 mod init;
 pub use init::*;

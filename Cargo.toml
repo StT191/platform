@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.5.2"
+version = "1.5.3"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -43,7 +43,7 @@ storage = ["directories", "web-sys/Storage"]
 
 [dependencies]
 winit = "0.30"
-log = "0.4"
+log = { version = "0.4", features = ["std"] }
 anyhow = "1"
 derive_more = { version = "2", features = ["debug"] }
 web-time = "1"

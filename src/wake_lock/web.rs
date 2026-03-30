@@ -35,7 +35,7 @@ impl WakeLock {
 
         wasm_bindgen_futures::spawn_local(async move {
             if let Ok(res) = JsFuture::from(promise).await {
-                lock.replace(Some(WakeLockSentinel::from(res)));
+                lock.replace(Some(res));
             }
         });
 
