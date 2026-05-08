@@ -7,6 +7,7 @@ use super::*;
 
 #[allow(clippy::large_enum_variant)]
 enum MountState<App: AppHandler> {
+  Mounted(AppState<App>),
   Init {
     event_queue: Vec<AppEvent<App::UserEvent>>,
     window_attributes: WindowAttributes,
@@ -22,7 +23,6 @@ enum MountState<App: AppHandler> {
     future_id: AppFutureId,
     receiver: Receiver<AppState<App>>,
   },
-  Mounted(AppState<App>),
   Empty,
 }
 
@@ -136,7 +136,7 @@ impl<App: AppHandler> Runtime for AppMount<App> {
       },
 
       // dropped, ignore further events
-      MountState::Empty => (),
+      MountState::Empty => {},
     }
   }
 

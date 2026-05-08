@@ -12,7 +12,7 @@ impl From<AsyncTimeoutId> for AppTimeoutId {
 mod single {
   use super::*;
 
-  pub struct AppFutures(Option<BoxFuture<'static, ()>>);
+  pub struct AppFutures(Option<AppFuture>);
 
   impl RuntimeFutures for AppFutures {
 
@@ -40,7 +40,7 @@ mod mapped {
 
   #[derive(Default)]
   pub struct AppFutures {
-    futures: RapidHashMap<u64, BoxFuture<'static, ()>>,
+    futures: RapidHashMap<u64, AppFuture>,
     next_id: u64,
   }
 
