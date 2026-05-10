@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.5.4"
+version = "1.5.5"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -51,6 +51,7 @@ web-time = "1"
 rel_path = { path = "rel_path" }
 
 rapidhash = { version = "4", default-features = false, features = ["unsafe"], optional = true }
+rand_core = { version = "0.9", default-features = false, optional = true }
 rand = { version = "0.9", default-features = false, optional = true }
 glam = { version = "0.30", optional = true }
 

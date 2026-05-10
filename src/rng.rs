@@ -1,5 +1,7 @@
 #![allow(clippy::should_implement_trait)]
 
+use rand_core::impls::fill_bytes_via_next;
+
 // export
 pub use rand::{*, Rng as RngTrait};
 pub use rapidhash::rng::RapidRng;
@@ -17,13 +19,11 @@ pub fn entropy() -> u64 {
 // convenience method to instatiate a seedable Rng with entropy
 pub trait WithEntropy: Sized {
     fn with_entropy() -> Self;
-    #[inline]
-    fn reseed_with_entropy(&mut self) { *self = Self::with_entropy() }
+    #[inline] fn reseed_with_entropy(&mut self) { *self = Self::with_entropy() }
 }
 
 impl<R: SeedableRng> WithEntropy for R {
-    #[inline]
-    fn with_entropy() -> Self { Self::seed_from_u64(entropy()) }
+    #[inline] fn with_entropy() -> Self { Self::seed_from_u64(entropy()) }
 }
 
 
@@ -37,27 +37,9 @@ impl EntropyRng {
 }
 
 impl RngCore for EntropyRng {
-
-    #[inline]
     fn next_u64(&mut self) -> u64 { self.next() }
-
-    #[inline]
     fn next_u32(&mut self) -> u32 { self.next() as u32 }
-
-    #[inline]
-    fn fill_bytes(&mut self, buffer: &mut [u8]) {
-
-        let (chunks, remainder) = buffer.as_chunks_mut::<8>();
-
-        for chunk in chunks {
-            *chunk = self.next().to_le_bytes();
-        }
-
-        if !remainder.is_empty() {
-            let random = self.next().to_le_bytes();
-            remainder.copy_from_slice(&random[0..remainder.len()]);
-        }
-    }
+    fn fill_bytes(&mut self, buffer: &mut [u8]) { fill_bytes_via_next(self, buffer) }
 }
 
 
@@ -70,47 +52,25 @@ pub struct RapidTimeRng { pub hasher: RapidHasher<'static> }
 
 impl RapidTimeRng {
 
-    #[inline]
-    pub fn new(seed: u64) -> Self {
+    #[inline] pub fn new(seed: u64) -> Self {
         Self { hasher: RapidHasher::new(seed) }
     }
 
-    #[inline]
-    pub fn next(&mut self) -> u64 {
+    #[inline] pub fn next(&mut self) -> u64 {
         crate::time::Instant::now().hash(&mut self.hasher);
         self.hasher.finish()
     }
 }
 
 impl RngCore for RapidTimeRng {
-
-    #[inline]
-    fn next_u64(&mut self) -> u64 { self.next() }
-
-    #[inline]
-    fn next_u32(&mut self) -> u32 { self.next() as u32 }
-
-    #[inline]
-    fn fill_bytes(&mut self, buffer: &mut [u8]) {
-
-        let (chunks, remainder) = buffer.as_chunks_mut::<8>();
-
-        for chunk in chunks {
-            *chunk = self.next().to_le_bytes();
-        }
-
-        if !remainder.is_empty() {
-            let random = self.next().to_le_bytes();
-            remainder.copy_from_slice(&random[0..remainder.len()]);
-        }
-    }
+    #[inline] fn next_u64(&mut self) -> u64 { self.next() }
+    #[inline] fn next_u32(&mut self) -> u32 { self.next() as u32 }
+    #[inline] fn fill_bytes(&mut self, buffer: &mut [u8]) { fill_bytes_via_next(self, buffer) }
 }
 
 impl SeedableRng for RapidTimeRng {
     type Seed = [u8; 8];
-
-    #[inline]
-    fn from_seed(seed: [u8; 8]) -> Self { Self::new(u64::from_le_bytes(seed)) }
+    #[inline] fn from_seed(seed: [u8; 8]) -> Self { Self::new(u64::from_le_bytes(seed)) }
 }
 
 

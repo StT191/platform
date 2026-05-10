@@ -66,7 +66,7 @@ macro_rules! shrink_capacity {
         }
     };
     ($coll:expr, $min:expr) => {
-        if $coll.capacity() > const {2*$min} && $coll.len() <= $coll.capacity() / 4 {
+        if $coll.capacity() >= const {2*$min} && $coll.len() <= $coll.capacity() / 4 {
           $coll.shrink_to($coll.capacity() / 2);
         }
     };
