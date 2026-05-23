@@ -31,71 +31,64 @@ impl<App: AppHandler> AppState<App> {
     }
   }
 
+  #[inline]
   pub fn event(&mut self, event: AppEvent<App::UserEvent>) {
 
     let app_ctx = &mut self.app_ctx;
 
+    #[cfg(feature = "auto_wake_lock")]
+    let mut focus_change: Option<bool> = None;
+
     match event {
 
-      AppEvent::Resumed => {
-        self.app.event(app_ctx, Event::Resumed);
-        self.after_event(None);
-      },
+      AppEvent::Resumed => self.app.event(app_ctx, Event::Resumed),
 
-      AppEvent::Suspended => {
-        self.app.event(app_ctx, Event::Suspended);
-        self.after_event(None);
-      },
+      AppEvent::Suspended => self.app.event(app_ctx, Event::Suspended),
 
       #[cfg(feature = "futures")]
       AppEvent::FutureReady {id, output: ()} => {
         self.app.event(app_ctx, Event::FutureReady(id));
-        self.after_event(None);
       },
 
       #[cfg(feature = "timeout")]
       AppEvent::Timeout {id: AppTimeoutId::User(id), instant} => {
         self.app.event(app_ctx, Event::Timeout {id, instant});
-        self.after_event(None);
       },
 
       #[cfg(feature = "async_timeout")]
-      AppEvent::Timeout {id: AppTimeoutId::Async(wake_id), ..} => wake_id.wake(),
+      AppEvent::Timeout {id: AppTimeoutId::Async(wake_id), ..} => {
+        wake_id.wake();
+        return;
+      },
 
       #[cfg(feature = "frame_pacing")]
       AppEvent::Timeout {id: AppTimeoutId::FrameRequest(id), instant} if id == self.window_id => {
         app_ctx.frame_time = instant;
         app_ctx.window.request_redraw();
         self.redraw_requested = true;
+        return;
       },
 
       AppEvent::UserEvent(AppEventExt::UserEvent(event)) => {
         self.app.event(app_ctx, Event::UserEvent(event));
-        self.after_event(None);
       },
 
       #[cfg(feature = "device_events")]
       AppEvent::DeviceEvent {device_id, event} => {
         self.app.event(app_ctx, Event::DeviceEvent {device_id, event});
-        self.after_event(None);
       },
 
       #[cfg(all(feature = "web_clipboard", target_family="wasm"))]
       AppEvent::UserEvent(AppEventExt::ClipboardFetch(id)) if id == self.window_id => {
         self.app.event(app_ctx, Event::ClipboardFetch);
-        self.after_event(None);
       },
 
       #[cfg(all(feature = "web_clipboard", target_family="wasm"))]
       AppEvent::UserEvent(AppEventExt::ClipboardPaste(id)) if id == self.window_id  => {
         self.app.event(app_ctx, Event::ClipboardPaste);
-        self.after_event(None);
       },
 
       AppEvent::WindowEvent {window_id: id, event: window_event} if id == self.window_id => {
-
-        #[cfg(feature = "auto_wake_lock")]
-        let mut focus_change: Option<bool> = None;
 
         // before user handler
         match &window_event {
@@ -133,22 +126,11 @@ impl<App: AppHandler> AppState<App> {
 
         // exec event handler
         self.app.event(app_ctx, Event::WindowEvent(window_event));
-
-        self.after_event({
-          #[cfg(feature = "auto_wake_lock")] { focus_change }
-          #[cfg(not(feature = "auto_wake_lock"))] { None }
-        });
       },
 
-      _ => {}
-
+      _ => return,
     }
-  }
 
-  fn after_event(&mut self, focus_change: Option<bool>) {
-
-    #[allow(unused)]
-    let app_ctx = &mut self.app_ctx;
 
     #[cfg(feature = "frame_pacing")]
     if app_ctx.schedule_frame {
@@ -191,10 +173,6 @@ impl<App: AppHandler> AppState<App> {
         self.wake_lock.as_mut().map(|lock| lock.release().map_err(|m| log::warn!("{m:?}")));
       }
     }
-
-    #[cfg(not(feature = "auto_wake_lock"))] {
-      let _ = focus_change; // ignore unused warning
-    }
-
   }
+
 }

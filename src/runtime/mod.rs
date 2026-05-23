@@ -155,6 +155,7 @@ impl<R: Runtime> RuntimeMount<R> {
     Self::new(event_loop.create_proxy(), runtime).run(event_loop);
   }
 
+  #[inline(never)]
   pub fn event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeEvent<R::Futures, R::UserEvent, R::TimeoutId>) {
 
     self.runtime.event(event_loop, &mut self.ctx, event);
@@ -173,6 +174,7 @@ impl<R: Runtime> RuntimeMount<R> {
 impl<R: Runtime> ApplicationHandler<RuntimeEventExt<R::FutureId, R::UserEvent>> for RuntimeMount<R> {
 
   #[cfg(any(feature="timeout", feature="async_timeout", feature="frame_pacing"))]
+  #[inline]
   fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
     if matches!(cause, StartCause::ResumeTimeReached {..}) &&
       let Some(timer::Timeout {id, instant}) = { self.ctx.timer.borrow_mut().pop_timeout() }
@@ -181,14 +183,17 @@ impl<R: Runtime> ApplicationHandler<RuntimeEventExt<R::FutureId, R::UserEvent>> 
     }
   }
 
+  #[inline]
   fn resumed(&mut self, event_loop: &ActiveEventLoop) {
     self.event(event_loop, RuntimeEvent::Resumed);
   }
 
+  #[inline]
   fn suspended(&mut self, event_loop: &ActiveEventLoop) {
     self.event(event_loop, RuntimeEvent::Suspended);
   }
 
+  #[inline]
   fn user_event(&mut self, event_loop: &ActiveEventLoop, event: RuntimeEventExt<R::FutureId, R::UserEvent>) {
     match event {
       RuntimeEventExt::WakeFuture(id) => {
@@ -202,15 +207,18 @@ impl<R: Runtime> ApplicationHandler<RuntimeEventExt<R::FutureId, R::UserEvent>> 
     }
   }
 
+  #[inline]
   fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
     self.event(event_loop, RuntimeEvent::WindowEvent { window_id, event });
   }
 
+  #[inline]
   fn exiting(&mut self, event_loop: &ActiveEventLoop) {
     self.event(event_loop, RuntimeEvent::Exit);
   }
 
   #[cfg(feature = "device_events")]
+  #[inline]
   fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
     self.event(event_loop, RuntimeEvent::DeviceEvent { device_id, event });
   }
