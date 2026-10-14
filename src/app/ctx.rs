@@ -122,8 +122,8 @@ impl<U: EventLike> AppCtx<U> {
     self.timer.borrow_mut().set_timeout_wait_earlier(AppTimeoutId::User(id), duraion)
   }
 
-  pub fn cancel_timeout(&mut self, id: u64, if_later: Option<Instant>) -> TimeoutResult {
-    self.timer.borrow_mut().cancel_timeout(&AppTimeoutId::User(id), if_later)
+  pub fn cancel_timeout(&mut self, id: u64, if_later_than: Option<Instant>) -> TimeoutResult {
+    self.timer.borrow_mut().cancel_timeout(&AppTimeoutId::User(id), if_later_than)
   }
 }
 

@@ -3,8 +3,8 @@ name = "rel_path"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
-rust-version = "1.88"
 
 [lib]
 name = "rel_path"

@@ -1,5 +1,5 @@
 
-use winit::window::WindowId;
+use winit::{window::WindowId, dpi::PhysicalSize};
 use super::{*};
 
 #[cfg(feature = "auto_wake_lock")]
@@ -10,6 +10,7 @@ use crate::time::*;
 
 
 pub(super) struct AppState<App: AppHandler> {
+  #[cfg(feature = "conflate_resizes")] resized: Option<PhysicalSize<u32>>,
   #[cfg(feature = "frame_pacing")] redraw_requested: bool,
   #[cfg(feature = "auto_wake_lock")] wake_lock: Option<WakeLock>,
   #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges<bool>,
@@ -22,6 +23,7 @@ impl<App: AppHandler> AppState<App> {
 
   pub fn new(app_ctx: AppCtx<App::UserEvent>, app: App) -> Self {
     Self {
+      #[cfg(feature = "conflate_resizes")] resized: None,
       #[cfg(feature = "frame_pacing")] redraw_requested: false,
       #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new().map_err(|m| log::warn!("{m:?}")).ok(),
       #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges::new(false),
@@ -96,6 +98,16 @@ impl<App: AppHandler> AppState<App> {
           #[cfg(feature = "frame_pacing")]
           WindowEvent::RedrawRequested => {
 
+            #[cfg(feature = "conflate_resizes")]
+            if let Some(size) = self.resized.take() {
+              let frame_timeout = app_ctx.frame_timeout; // preserve frame_timeout
+
+              self.app.event(app_ctx, Event::WindowEvent(WindowEvent::Resized(size)));
+
+              app_ctx.frame_timeout = frame_timeout;
+              app_ctx.schedule_frame = false;
+            }
+
             if app_ctx.frame_timeout.is_none() || !self.redraw_requested {
               // no frame was requested or frame_request-timeout is still in progress
               app_ctx.frame_time = Instant::now();
@@ -105,8 +117,20 @@ impl<App: AppHandler> AppState<App> {
             app_ctx.frame_timeout = None;
           },
 
-          WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged {..} => {
-            app_ctx.window.request_redraw();
+          #[cfg(all(not(feature = "frame_pacing"), feature = "conflate_resizes"))]
+          WindowEvent::RedrawRequested => {
+            if let Some(size) = self.resized.take() {
+              self.app.event(app_ctx, Event::WindowEvent(WindowEvent::Resized(size)));
+            }
+          },
+
+          #[cfg(feature = "conflate_resizes")]
+          WindowEvent::Resized(size) => {
+            if self.resized.is_none() {
+              app_ctx.window.request_redraw();
+            }
+            self.resized = Some(*size);
+            return; // return early without event handling here
           },
 
           #[cfg(feature = "frame_pacing")]
@@ -133,9 +157,7 @@ impl<App: AppHandler> AppState<App> {
 
 
     #[cfg(feature = "frame_pacing")]
-    if app_ctx.schedule_frame {
-
-      app_ctx.schedule_frame = false;
+    if app_ctx.schedule_frame.take() {
 
       let instant = app_ctx.frame_timeout.expect("frame_timeout needs to be set when scheduling a frame");
       let now = Instant::now();

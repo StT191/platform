@@ -1,7 +1,8 @@
 [workspace.package]
-version = "1.5.6"
+version = "1.6.0"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
+rust-version = "1.100"
 license = "MIT"
 
 [workspace]
@@ -13,8 +14,8 @@ name = "platform"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
-rust-version = "1.88"
 
 [lib]
 name = "platform"
@@ -25,16 +26,18 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(web_sys_unstable_apis)'] }
 
 
 [features]
+default = ["conflate_resizes"]
 timeout = []
 async_timeout = []
 frame_pacing = []
 futures = ["rapidhash"]
 device_events = []
 auto_wake_lock = ["wake_lock"]
+conflate_resizes = []
 wake_lock = ["dep:nosleep", "web-sys/Navigator", "web-sys/WakeLock", "web-sys/WakeLockType", "web-sys/WakeLockSentinel"]
 touches = ["dep:glam"]
-rapidhash = ["rapidhash/std"]
-rng = ["dep:rand", "rapidhash/rng"]
+rapidhash = ["dep:rapidhash"]
+rng = ["dep:rand", "dep:rapidrand"]
 icon_loader = ["dep:icon-loader", "dep:resvg"]
 web_clipboard = ["web-sys/Clipboard", "web-sys/ClipboardEvent", "web-sys/DataTransfer"]
 directories = ["dep:robius-directories"]
@@ -50,22 +53,22 @@ web-time = "1"
 
 rel_path = { path = "rel_path" }
 
-rapidhash = { version = "4", default-features = false, features = ["unsafe"], optional = true }
-rand_core = { version = "0.9", default-features = false, optional = true }
-rand = { version = "0.9", default-features = false, optional = true }
-glam = { version = "0.30", optional = true }
+rapidhash = { version = "4", default-features = false, features = ["std", "unsafe"], optional = true }
+rapidrand = { version = "0.1", default-features = false, features = ["rand"], optional = true }
+rand = { version = "0.10", default-features = false, optional = true }
+glam = { version = "0.34", default-features = false, features = ["std"], optional = true }
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
 icon-loader = { version = "0.4", optional = true }
-resvg = { version = "0.45", optional = true }
+resvg = { version = "0.48", optional = true }
 
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-pollster = "0.4"
+pollster = "1"
 simple_logger = "5"
 
-robius-directories = { version = "5", optional = true }
+robius-directories = { version = "6", optional = true }
 nosleep = { version = "0.2", optional = true }
 
 
@@ -78,4 +81,4 @@ console_log = "1"
 
 
 [dev-dependencies]
-softbuffer = "0.4.6"
+softbuffer = "0.4.8"

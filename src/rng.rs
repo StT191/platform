@@ -1,10 +1,12 @@
 #![allow(clippy::should_implement_trait)]
 
-use rand_core::impls::fill_bytes_via_next;
+use rand::rand_core::utils::fill_bytes_via_next_word;
 
 // export
-pub use rand::{*, Rng as RngTrait};
-pub use rapidhash::rng::RapidRng;
+pub use rand::*;
+pub use rapidrand::RapidRng;
+
+pub type Res<T> = Result<T, !>;
 
 
 // best effort for the simplest source of entropy on every platform
@@ -32,14 +34,14 @@ impl<R: SeedableRng> WithEntropy for R {
 pub struct EntropyRng;
 
 impl EntropyRng {
-    #[inline]
-    pub fn next(&mut self) -> u64 { entropy() }
+    #[inline] pub fn next(&mut self) -> u64 { entropy() }
 }
 
-impl RngCore for EntropyRng {
-    fn next_u64(&mut self) -> u64 { self.next() }
-    fn next_u32(&mut self) -> u32 { self.next() as u32 }
-    fn fill_bytes(&mut self, buffer: &mut [u8]) { fill_bytes_via_next(self, buffer) }
+impl TryRng for EntropyRng {
+    type Error = !;
+    #[inline] fn try_next_u64(&mut self) -> Res<u64> { Ok(self.next()) }
+    #[inline] fn try_next_u32(&mut self) -> Res<u32> { Ok((self.next() >> 32) as u32) }
+    #[inline] fn try_fill_bytes(&mut self, buffer: &mut [u8]) -> Res<()> { fill_bytes_via_next_word(buffer, || Ok(self.next())) }
 }
 
 
@@ -62,10 +64,11 @@ impl RapidTimeRng {
     }
 }
 
-impl RngCore for RapidTimeRng {
-    #[inline] fn next_u64(&mut self) -> u64 { self.next() }
-    #[inline] fn next_u32(&mut self) -> u32 { self.next() as u32 }
-    #[inline] fn fill_bytes(&mut self, buffer: &mut [u8]) { fill_bytes_via_next(self, buffer) }
+impl TryRng for RapidTimeRng {
+    type Error = !;
+    #[inline] fn try_next_u64(&mut self) -> Res<u64> { Ok(self.next()) }
+    #[inline] fn try_next_u32(&mut self) -> Res<u32> { Ok((self.next() >> 32) as u32) }
+    #[inline] fn try_fill_bytes(&mut self, buffer: &mut [u8]) -> Res<()> { fill_bytes_via_next_word(buffer, || Ok(self.next())) }
 }
 
 impl SeedableRng for RapidTimeRng {
