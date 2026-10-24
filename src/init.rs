@@ -6,7 +6,6 @@ use winit::window::{Window, WindowAttributes};
 use winit::platform::web::{WindowExtWebSys, WindowAttributesExtWebSys};
 
 use crate::LogFilter;
-use anyhow::Context;
 
 
 pub fn init(log_filter: impl Into<LogFilter>) {
@@ -15,12 +14,25 @@ pub fn init(log_filter: impl Into<LogFilter>) {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
 
-    log_filter.into().init().context("could not initialize logger").unwrap();
+    log_filter.into().init().expect("could not initialize logger");
+
+    log::debug!("init logger");
 }
 
 
+#[cfg(not(target_os="android"))]
 pub fn event_loop<T>() -> EventLoop<T> {
     EventLoop::with_user_event().build().unwrap()
+}
+
+#[cfg(target_os="android")]
+pub fn event_loop<T>(app: winit::platform::android::activity::AndroidApp) -> EventLoop<T> {
+    use winit::platform::android::EventLoopBuilderExtAndroid;
+
+    let mut event_loop_builder = EventLoop::with_user_event();
+    event_loop_builder.with_android_app(app);
+
+    event_loop_builder.build().unwrap()
 }
 
 

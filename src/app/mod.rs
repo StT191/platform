@@ -1,6 +1,7 @@
 
 use std::{fmt::Debug, future::Future};
-use winit::{window::{WindowId, WindowAttributes}, event::*};
+#[allow(unused_imports)]
+use winit::{window::{WindowId, WindowAttributes, Fullscreen}, event::*, keyboard::*};
 use crate::*;
 
 // mods
@@ -14,6 +15,14 @@ use state::*;
 pub use mount::*;
 pub use futures::*;
 
+
+pub const DEFAULT_FULLSCREEN: Fullscreen = Fullscreen::Borderless(None);
+
+pub const BACK_KEY: Key = Key::Named(NamedKey::BrowserBack);
+
+
+#[cfg(target_os = "android")]
+pub mod android_state;
 
 #[cfg(all(feature = "web_clipboard", target_family="wasm", web_sys_unstable_apis))]
 mod web_clipboard;
@@ -55,6 +64,7 @@ pub type AppCtxEventDispatcher<U=!> = EventDispatcher<AppFutureId, AppEventExt<U
 pub enum Event<U: EventLike = !> {
   Resumed,
   Suspended,
+  Exit,
   WindowEvent(WindowEvent),
   UserEvent(U),
   #[cfg(feature = "timeout")] Timeout {instant: time::Instant, id: u64},
@@ -121,22 +131,66 @@ macro_rules! app_closure {
 
 #[macro_export]
 macro_rules! main_app {
-  ($log_level:expr, $window_attributes:expr, $app_type:ty $(,)?) => {
-    $crate::main_app!{$log_level, $window_attributes, $app_type, ()}
+  ($log_filter:expr, $window_attributes:expr, $app_type:ty $(,)?) => {
+    $crate::main_app!{$log_filter, $window_attributes, $app_type, ()}
   };
-  ($log_level:expr, $window_attributes:expr, $app_type:ty, $init_data:expr $(,)?) => {
-    fn main() {
-      $crate::init($log_level);
-      $crate::AppMount::<$app_type>::new($window_attributes, $init_data).start();
+  ($log_filter:expr, $window_attributes:expr, $app_type:ty, $init_data:expr $(,)?) => {
+
+    #[cfg(not(target_os="android"))]
+    pub fn main() {
+      $crate::init($log_filter);
+      $crate::AppMount::<$app_type>::new($window_attributes, $init_data)
+        .start().expect("event_loop error")
+      ;
     }
+
+    #[cfg(target_os="android")]
+    pub fn main() {} // empty main to make bin-targets happy
+
+    #[cfg(target_os="android")]
+    #[unsafe(no_mangle)]
+    pub fn android_main(app: $crate::winit::platform::android::activity::AndroidApp) {
+
+      $crate::log::debug!("android_main()");
+
+      use ::std::sync::{Once, Mutex, TryLockError};
+
+      static INIT: Once = Once::new();
+      INIT.call_once(|| $crate::init($log_filter));
+
+      static EVENT_LOOP: Mutex<()> = Mutex::new(());
+
+      match EVENT_LOOP.try_lock() {
+        Ok(_guard) => {
+          let result = $crate::AppMount::<$app_type>::new($window_attributes, $init_data)
+            .run(event_loop(app))
+          ;
+          match result {
+            Ok(()) => ::std::process::exit(0),
+            Err(err) => {
+              $crate::log::debug!("event_loop error: {err:?}");
+              ::std::process::exit(1);
+            },
+          }
+        },
+        Err(TryLockError::WouldBlock) => {
+          $crate::log::debug!("event_loop already running");
+        },
+        Err(err) => {
+          $crate::log::error!("event_loop: {err}");
+          ::std::process::exit(2);
+        },
+      }
+    }
+
   };
 }
 
 #[macro_export]
 macro_rules! main_app_closure {
-  ($log_level:expr, $window_attributes:expr, $init_closure:expr $(,)?) => {
+  ($log_filter:expr, $window_attributes:expr, $init_closure:expr $(,)?) => {
     $crate::main_app!{
-      $log_level, $window_attributes,
+      $log_filter, $window_attributes,
       $crate::AppClosure::<_, _>, $crate::app_closure!($init_closure),
     }
   };

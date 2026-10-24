@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.6.0"
+version = "1.7.0"
 authors = ["Stefan Tammer <st.tammer@gmail.com>"]
 edition = "2024"
 rust-version = "1.100"
@@ -45,7 +45,7 @@ storage = ["directories", "web-sys/Storage"]
 
 
 [dependencies]
-winit = "0.30"
+winit = { version = "0.30", features = ["android-native-activity"] }
 log = { version = "0.4", features = ["std"] }
 anyhow = "1"
 derive_more = { version = "2", features = ["debug"] }
@@ -59,17 +59,19 @@ rand = { version = "0.10", default-features = false, optional = true }
 glam = { version = "0.34", default-features = false, features = ["std"], optional = true }
 
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+pollster = "1"
+robius-directories = { version = "6", optional = true }
+
+
+[target.'cfg(not(any(target_family = "wasm", target_os = "android")))'.dependencies]
+simple_logger = "5"
+nosleep = { version = "0.2", optional = true }
+
+
 [target.'cfg(target_os = "linux")'.dependencies]
 icon-loader = { version = "0.4", optional = true }
 resvg = { version = "0.48", optional = true }
-
-
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-pollster = "1"
-simple_logger = "5"
-
-robius-directories = { version = "6", optional = true }
-nosleep = { version = "0.2", optional = true }
 
 
 [target.'cfg(target_family = "wasm")'.dependencies]
@@ -78,6 +80,11 @@ web-sys = { version = "0.3", features = ["Window"] }
 js-sys = { version = "0.3" }
 console_error_panic_hook = "0.1"
 console_log = "1"
+
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = { version = "0.15", default-features = false }
+jni = "0.22"
 
 
 [dev-dependencies]

@@ -3,44 +3,36 @@ use std::sync::Arc;
 use winit::window::Window;
 use super::*;
 
-// app futures feature
-
-#[cfg(feature = "futures")]
-#[derive(Clone)]
-pub struct AppFutureSpawner<U: EventLike = !> { futures: AppFutureRuntime<U> }
-
-#[cfg(feature = "futures")]
-impl<U: EventLike> AppFutureSpawner<U> {
-
-  pub fn new(futures: AppFutureRuntime<U>) -> Self { Self {futures} }
-
-  pub fn spawn(&mut self, future: AppFuture) -> AppFutureId {
-    self.futures.spawn(future)
-  }
-
-  pub fn cancel(&mut self, id: &AppFutureId) {
-    self.futures.cancel(id)
-  }
-}
-
+// app ctx
 
 #[cfg(any(feature = "timeout", feature = "async_timeout", feature = "frame_pacing"))]
 use crate::time::*;
+
+#[cfg(feature = "futures")]
+pub struct AppFutureSpawner<U: EventLike = !> { futures: AppFutureRuntime<U> }
+
+#[cfg(target_os = "android")]
+use super::{android_state::AndroidState, android_util::AndroidApp};
 
 
 pub struct AppCtx<U: EventLike = !> {
 
   // pub
-  #[cfg(feature = "futures")] pub futures: AppFutureSpawner<U>,
   #[cfg(feature = "auto_wake_lock")] pub auto_wake_lock: bool,
   pub exit: bool,
 
   // private
+  pub(super) redraw_requested: bool,
+
   #[cfg(any(feature = "timeout", feature = "async_timeout", feature = "frame_pacing"))]
   pub(super) timer: AppTimer,
 
+  #[cfg(feature = "futures")] futures: AppFutureSpawner<U>,
+
   #[cfg(feature = "frame_pacing")] pub(super) frame_time: Instant,
   #[cfg(feature = "frame_pacing")] pub(super) schedule_frame: bool,
+  #[cfg(feature = "frame_pacing")] pub(super) frame_scheduled: bool,
+  #[cfg(feature = "frame_pacing")] pub(super) window_id: WindowId,
   #[cfg(feature = "frame_pacing")] pub(super) frame_timeout: Option<Instant>,
 
   #[cfg(feature = "frame_pacing")] manual_frame_duration: Option<Duration>,
@@ -48,10 +40,9 @@ pub struct AppCtx<U: EventLike = !> {
   #[cfg(feature = "frame_pacing")] pub(super) frame_duration: Duration,
 
   pub(super) event_dispatcher: AppCtxEventDispatcher<U>,
-
-  #[allow(unused)] window_id: WindowId,
-
   pub(super) window: Arc<Window>,
+
+  #[cfg(target_os = "android")] pub(super) android_state: AndroidState,
 }
 
 impl<U: EventLike> AppCtx<U> {
@@ -60,7 +51,13 @@ impl<U: EventLike> AppCtx<U> {
 
   pub fn window_clone(&self) -> Arc<Window> { self.window.clone() }
 
-  pub fn new(futures: AppFutureRuntime<U>, timer: AppTimer, event_dispatcher: AppCtxEventDispatcher<U>, window: Window) -> Self {
+  #[cfg(target_os = "android")]
+  pub fn android_app(&self) -> &AndroidApp { &self.android_state.app }
+
+  pub fn new(
+    futures: AppFutureRuntime<U>, timer: AppTimer, event_dispatcher: AppCtxEventDispatcher<U>, window: Window,
+    #[cfg(target_os = "android")] android_state: AndroidState,
+  ) -> Self {
 
     #[cfg(not(feature = "futures"))] let _ = futures;
 
@@ -70,6 +67,8 @@ impl<U: EventLike> AppCtx<U> {
     #[allow(unused_mut)]
     let mut app_ctx = Self {
 
+      redraw_requested: false,
+
       #[cfg(feature = "futures")] futures: AppFutureSpawner::new(futures),
 
       #[cfg(any(feature = "timeout", feature = "async_timeout", feature = "frame_pacing"))]
@@ -77,6 +76,8 @@ impl<U: EventLike> AppCtx<U> {
 
       #[cfg(feature = "frame_pacing")] frame_time: Instant::now(),
       #[cfg(feature = "frame_pacing")] schedule_frame: false,
+      #[cfg(feature = "frame_pacing")] frame_scheduled: false,
+      #[cfg(feature = "frame_pacing")] window_id: window.id(),
       #[cfg(feature = "frame_pacing")] frame_timeout: None,
       #[cfg(feature = "frame_pacing")] manual_frame_duration: None,
       #[cfg(feature = "frame_pacing")] monitor_frame_duration: None,
@@ -86,14 +87,65 @@ impl<U: EventLike> AppCtx<U> {
 
       event_dispatcher,
 
-      window_id: window.id(),
       window: Arc::new(window),
+
+      #[cfg(target_os = "android")] android_state,
     };
 
     #[cfg(feature = "frame_pacing")]
     app_ctx.fetch_monitor_frame_duration();
 
     app_ctx
+  }
+}
+
+
+// fullscreen handling
+impl<U: EventLike> AppCtx<U> {
+
+  pub fn is_fullscreen(&self) -> bool {
+    #[cfg(not(target_os = "android"))] { self.window.fullscreen().is_some() }
+    #[cfg(target_os = "android")] { self.android_state.fullscreen }
+  }
+
+  pub fn enable_fullscreen(&mut self) {
+    #[cfg(not(target_os = "android"))] { self.window.set_fullscreen(Some(DEFAULT_FULLSCREEN)) }
+    #[cfg(target_os = "android")] { self.android_state.enable_fullscreen() }
+  }
+
+  pub fn disable_fullscreen(&mut self) {
+    #[cfg(not(target_os = "android"))] { self.window.set_fullscreen(None) }
+    #[cfg(target_os = "android")] { self.android_state.disable_fullscreen() }
+  }
+
+  pub fn toggle_fullscreen(&mut self) -> bool {
+    if self.is_fullscreen() { self.disable_fullscreen(); false }
+    else { self.enable_fullscreen(); true }
+  }
+
+}
+
+
+// event dispatcher
+#[derive(Debug, Clone)]
+pub struct AppEventDispatcher<U: EventLike> {
+  event_dispatcher: AppCtxEventDispatcher<U>,
+}
+
+impl<U: EventLike> AppEventDispatcher<U> {
+  pub fn dispatch(&self, event: U) {
+    self.event_dispatcher.dispatch(AppEventExt::UserEvent(event));
+  }
+}
+
+impl<U: EventLike> AppCtx<U> {
+
+  pub fn dispatch_event(&self, event: U) {
+    self.event_dispatcher.dispatch(AppEventExt::UserEvent(event));
+  }
+
+  pub fn event_dispatcher(&self) -> AppEventDispatcher<U> {
+    AppEventDispatcher { event_dispatcher: self.event_dispatcher.clone() }
   }
 }
 
@@ -129,7 +181,6 @@ impl<U: EventLike> AppCtx<U> {
 
 
 // async-timeout feature
-
 #[cfg(feature = "async_timeout")]
 impl<U: EventLike> AppCtx<U> {
 
@@ -147,7 +198,61 @@ impl<U: EventLike> AppCtx<U> {
 }
 
 
+// futures feature
+#[cfg(feature = "futures")]
+impl<U: EventLike> Clone for AppFutureSpawner<U> {
+  fn clone(&self) -> Self { Self { futures: self.futures.clone() } }
+}
+
+#[cfg(feature = "futures")]
+impl<U: EventLike> AppFutureSpawner<U> {
+
+  pub fn new(futures: AppFutureRuntime<U>) -> Self { Self {futures} }
+
+  pub fn spawn(&self, future: AppFuture) -> AppFutureId {
+    self.futures.spawn(future)
+  }
+
+  pub fn cancel(&self, id: &AppFutureId) {
+    self.futures.cancel(id)
+  }
+}
+
+#[cfg(feature = "futures")]
+impl<U: EventLike> AppCtx<U> {
+
+  pub fn future_spawner(&self) -> AppFutureSpawner<U> {
+    self.futures.clone()
+  }
+
+  pub fn spawn_future(&self, future: AppFuture) -> AppFutureId {
+    self.futures.spawn(future)
+  }
+
+  pub fn cancel_future(&self, id: &AppFutureId) {
+    self.futures.cancel(id)
+  }
+}
+
+
 // frame-pacing feature
+
+impl<U: EventLike> AppCtx<U> {
+
+  pub fn request_redraw(&mut self) {
+
+    if !self.redraw_requested.set() { return; }
+
+    self.window.request_redraw();
+
+    #[cfg(feature = "frame_pacing")] {
+      self.cancel_frame();
+      let now = Instant::now();
+      self.frame_time = now;
+      self.frame_timeout = Some(now);
+    }
+  }
+}
 
 #[cfg(feature = "frame_pacing")]
 impl<U: EventLike> AppCtx<U> {
@@ -158,6 +263,10 @@ impl<U: EventLike> AppCtx<U> {
 
   pub fn schedule_frame(&mut self, instant: Instant) {
 
+    if self.redraw_requested {
+      return;
+    }
+
     let set_instant = match self.frame_timeout {
       Some(other) if other <= instant => None,
       // if no previous or earlier than previous
@@ -167,6 +276,16 @@ impl<U: EventLike> AppCtx<U> {
     if set_instant.is_some() {
       self.frame_timeout = set_instant;
       self.schedule_frame = true;
+    }
+  }
+
+  pub fn cancel_frame(&mut self) {
+
+    self.schedule_frame = false;
+    self.frame_timeout = None;
+
+    if self.frame_scheduled.take() {
+      self.timer.borrow_mut().cancel_timeout(&AppTimeoutId::FrameRequest(self.window_id), None);
     }
   }
 
@@ -204,29 +323,4 @@ impl<U: EventLike> AppCtx<U> {
   pub fn monitor_frame_duration(&mut self) -> Option<Duration> { self.monitor_frame_duration }
 
   pub fn frame_duration(&mut self) -> Duration { self.frame_duration }
-}
-
-
-// app-waker feature
-
-#[derive(Debug, Clone)]
-pub struct AppEventDispatcher<U: EventLike> {
-  event_dispatcher: AppCtxEventDispatcher<U>,
-}
-
-impl<U: EventLike> AppEventDispatcher<U> {
-  pub fn dispatch(&self, event: U) {
-    self.event_dispatcher.dispatch(AppEventExt::UserEvent(event));
-  }
-}
-
-impl<U: EventLike> AppCtx<U> {
-
-  pub fn dispatch_event(&self, event: U) {
-    self.event_dispatcher.dispatch(AppEventExt::UserEvent(event));
-  }
-
-  pub fn event_dispatcher(&self) -> AppEventDispatcher<U> {
-    AppEventDispatcher { event_dispatcher: self.event_dispatcher.clone() }
-  }
 }

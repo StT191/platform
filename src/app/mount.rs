@@ -2,6 +2,9 @@
 use winit::{window::{WindowAttributes, Window}, event_loop::ActiveEventLoop};
 use std::{mem::replace, sync::mpsc::{Receiver, sync_channel}};
 
+#[cfg(target_os = "android")]
+use crate::{android_state::*, android_util::*};
+
 use super::*;
 
 #[allow(clippy::large_enum_variant)]
@@ -15,6 +18,7 @@ enum MountState<App: AppHandler> {
   Window {
     event_queue: Vec<AppEvent<App::UserEvent>>,
     window: Window,
+    set_fullscreen: bool,
     init_data: App::InitData,
   },
   Mounting {
@@ -50,11 +54,9 @@ impl<App: AppHandler> Runtime for AppMount<App> {
   #[inline]
   fn event(&mut self, event_loop: &ActiveEventLoop, ctx: &mut AppRuntimeCtx<App::UserEvent>, event: AppEvent<App::UserEvent>) {
 
-    if matches!(event, AppEvent::Exit) {
-      std::hint::cold_path();
-      self.state = MountState::Empty;
-    }
-    else if let MountState::Mounted(app_state) = &mut self.state {
+    let exit = matches!(event, AppEvent::Exit);
+
+    if let MountState::Mounted(app_state) = &mut self.state {
 
       app_state.event(event);
 
@@ -73,14 +75,14 @@ impl<App: AppHandler> Runtime for AppMount<App> {
 
           AppEvent::Resumed => {
 
-            event_queue.push(event);
-
             let MountState::Init {event_queue, window_attributes, init_data} = self.take() else { unreachable!() };
+
+            let set_fullscreen = window_attributes.fullscreen == Some(DEFAULT_FULLSCREEN);
 
             let window = crate::window(event_loop, window_attributes);
             mount_window(&window);
 
-            self.state = MountState::Window {window, event_queue, init_data};
+            self.state = MountState::Window {event_queue, window, set_fullscreen, init_data};
           },
 
           _ => event_queue.push(event),
@@ -89,21 +91,37 @@ impl<App: AppHandler> Runtime for AppMount<App> {
         // after window creation
         MountState::Window {event_queue, ..} => match &event {
 
-          AppEvent::WindowEvent {event: WindowEvent::Resized {..}, ..} => {
+          AppEvent::WindowEvent {event: WindowEvent::Resized(_), ..} => {
 
-            event_queue.push(event);
-
-            let MountState::Window {event_queue, window, init_data} = self.take() else { unreachable!() };
+            let MountState::Window {event_queue, window, set_fullscreen, init_data} = self.take() else { unreachable!() };
 
             let (sender, receiver) = sync_channel(1);
             let futures = ctx.futures.clone();
             let timer = ctx.timer.clone();
             let event_dispatcher = ctx.event_dispatcher.clone();
 
+            #[cfg(target_os = "android")]
+            let android_app = event_loop.android_app().clone();
+
             let future_id = ctx.futures.spawn(Box::pin(async move {
-              let mut app_ctx = AppCtx::new(futures, timer, event_dispatcher, window);
+
+              #[cfg(target_os = "android")]
+              let android_state = AndroidState::new(android_app, &window);
+
+              let mut app_ctx = AppCtx::new(
+                futures, timer, event_dispatcher, window,
+                #[cfg(target_os = "android")] android_state,
+              );
+
+              if set_fullscreen {
+                app_ctx.enable_fullscreen();
+              };
+
+              log::debug!("init app");
+
               let app = App::init(&mut app_ctx, init_data).await;
               let app_state = AppState::new(app_ctx, app);
+
               sender.send(app_state).unwrap();
             }));
 
@@ -119,6 +137,7 @@ impl<App: AppHandler> Runtime for AppMount<App> {
           AppEvent::FutureReady {id, ..} => if id == future_id {
 
             let mut app_state = receiver.recv().unwrap();
+            log::debug!("mounting app");
 
             for event in event_queue.drain(..) {
 
@@ -139,6 +158,11 @@ impl<App: AppHandler> Runtime for AppMount<App> {
 
         _ => {},
       }
+    }
+
+    if exit {
+      std::hint::cold_path();
+      self.state = MountState::Empty;
     }
   }
 

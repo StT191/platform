@@ -3,77 +3,75 @@ pub use log::{self, Level as LogLevel, LevelFilter as LogLevelFilter};
 
 
 pub struct LogFilter {
-    pub default_level: LogLevel,
-
-    #[cfg(not(target_family="wasm"))]
+    pub default_filter: LogLevelFilter,
     pub module_filter: Option<&'static [(&'static str, LogLevelFilter)]>,
+    pub tag: Option<&'static str>,
+}
 
-    #[cfg(target_family="wasm")]
-    pub module_filter: Option<fn (&str) -> Option<LogLevelFilter>>,
+impl From<LogLevelFilter> for LogFilter {
+    fn from(default_filter: LogLevelFilter) -> Self { Self { default_filter, module_filter: None, tag: None } }
 }
 
 impl From<LogLevel> for LogFilter {
-    fn from(default_level: LogLevel) -> Self {
-        Self { default_level, module_filter: None }
-    }
+    fn from(default_level: LogLevel) -> Self { Self::from(default_level.to_level_filter()) }
 }
-
 
 #[macro_export]
 macro_rules! log_filter {
-    ($level:ident) => (LogLevel::$level);
-    ($level:ident, $($module:literal => $module_level:ident),+) => {{
-
-        #[cfg(not(target_family="wasm"))]
-        let log_filter = $crate::log_filter!(@array: $level, $($module => $module_level,)+);
-
-        #[cfg(target_family="wasm")]
-        let log_filter = $crate::log_filter!(@fn: $level, $($module => $module_level,)+);
-
+    ($level:ident) => ($crate::LogLevelFilter::$level);
+    ($tag:expr, $level:ident) => {
+        $crate::LogFilter {
+            default_filter: $crate::LogLevelFilter::$level,
+            module_filter: None,
+            tag: Some($tag),
+        }
+    };
+    ($level:ident, $( $(@[$at:meta])? $module:expr => $module_level:ident ),+ ) => {{
+        $crate::LogFilter {
+            default_filter: $crate::LogLevelFilter::$level,
+            module_filter: Some(&[
+                $( $(#[$at])? ($module, $crate::LogLevelFilter::$module_level), )+
+            ]),
+            tag: None,
+        }
+    }};
+    ($tag:expr, $level:ident, $( $(@[$at:meta])? $module:expr => $module_level:ident ),+ ) => {{
+        let mut log_filter = $crate::log_filter!($level, $( $(@[$at])? $module => $module_level ),+ );
+        log_filter.tag = Some($tag);
         log_filter
     }};
-    (@array: $level:ident, $($module:literal => $module_level:ident,)+) => (LogFilter {
-        default_level: $crate::LogLevel::$level,
-        module_filter: Some(&[
-            $( ($module, $crate::LogLevelFilter::$module_level) ,)+
-        ]),
-    });
-    (@fn: $level:ident, $($module:literal => $module_level:ident,)+) => (LogFilter {
-        default_level: $crate::LogLevel::$level,
-        module_filter: Some(|module: &str| -> Option<$crate::LogLevelFilter> {
-            match module {
-                $( $module => Some($crate::LogLevelFilter::$module_level), )+
-                _ => None,
-            }
-        }),
-    });
 }
 
 
 #[cfg(target_family="wasm")]
-pub(crate) struct LogFilterFn(pub(crate) fn (&str) -> Option<LogLevelFilter>);
+struct FilteredConsoleLogger {
+    default_filter: LogLevelFilter,
+    module_filter: &'static [(&'static str, LogLevelFilter)],
+}
 
 #[cfg(target_family="wasm")]
-impl log::Log for LogFilterFn {
+impl log::Log for FilteredConsoleLogger {
 
     #[inline]
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::max_level()
+
+        let filter = self.module_filter.iter().copied()
+            .find(|(module, _)| metadata.target().starts_with(module))
+            .map(|(_, level)| level)
+            .unwrap_or(self.default_filter)
+        ;
+
+        metadata.level() <= filter
     }
 
     #[inline]
     fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) {
-            return;
+        if self.enabled(record.metadata()) {
+            console_log::log(record);
         }
-
-        if let Some(level) = self.0(record.target()) && record.level() > level {
-            return;
-        }
-
-        console_log::log(record);
     }
 
+    #[inline]
     fn flush(&self) {}
 }
 
@@ -84,31 +82,61 @@ impl LogFilter {
 
     pub fn init(self) -> Res<()> {
 
-        let level_filter = self.default_level.to_level_filter();
+        #[cfg(not(any(target_family="wasm", target_os="android")))] {
 
-        #[cfg(not(target_family="wasm"))] {
-
-            let mut logger = simple_logger::SimpleLogger::new().with_level(level_filter);
+            let mut logger = simple_logger::SimpleLogger::new().with_level(self.default_filter);
 
             if let Some(filters) = self.module_filter {
-                for (module, level) in filters {
-                    logger = logger.with_module_level(module, *level);
+                for (target, level) in filters {
+                    logger = logger.with_module_level(target, *level);
                 }
             }
 
             logger.init()?;
         }
 
-
         #[cfg(target_family="wasm")] {
 
-            if let Some(filter_fn) = self.module_filter {
-                log::set_max_level(level_filter);
-                log::set_boxed_logger(Box::new(LogFilterFn(filter_fn)))?;
+            if let Some(module_filter) = self.module_filter {
+                log::set_max_level(LogLevelFilter::Trace);
+                log::set_boxed_logger(Box::new(FilteredConsoleLogger {
+                    default_filter: self.default_filter,
+                    module_filter,
+                }))?;
             }
             else {
-                console_log::init_with_level(self.default_level)?;
+                log::set_max_level(self.default_filter);
+                console_log::init()?;
             }
+        }
+
+        #[cfg(target_os="android")] {
+
+            let mut config = android_logger::Config::default();
+
+            if let Some(tag) = self.tag {
+                config = config.with_tag(tag);
+            }
+
+            if let Some(filters) = self.module_filter {
+
+                log::set_max_level(LogLevelFilter::Trace);
+
+                let mut builder = android_logger::FilterBuilder::new();
+
+                builder.filter_level(self.default_filter);
+
+                for (target, level) in filters {
+                    builder.filter_module(target, *level);
+                }
+
+                config = config.with_filter(builder.build());
+            }
+            else {
+                config = config.with_max_level(self.default_filter);
+            }
+
+            android_logger::init_once(config);
         }
 
         Ok(())

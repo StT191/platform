@@ -19,6 +19,7 @@ impl WakeLock {
         if !self.active {
             self.nosleep.start(NoSleepType::PreventUserIdleDisplaySleep)?;
             self.active = true;
+            log::trace!("WakeLock requested");
         }
         Ok(())
     }
@@ -27,6 +28,7 @@ impl WakeLock {
         if self.active {
             self.nosleep.stop()?;
             self.active = false;
+            log::trace!("WakeLock released");
         }
         Ok(())
     }

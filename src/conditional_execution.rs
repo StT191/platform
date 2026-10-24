@@ -1,37 +1,21 @@
 
 // detect changes
-#[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-#[repr(transparent)]
-pub struct DetectChanges<T: PartialEq + Clone> {
-    state: T,
-}
+pub trait DetectChanges: PartialEq + Clone {
 
-impl<T: PartialEq + Clone> DetectChanges<T> {
-
-    pub fn new(initial_state: T) -> Self {
-        Self { state: initial_state }
+    #[inline] fn changed(&self, state: &Self) -> bool {
+        self != state
     }
 
-    pub fn state(&self) -> &T {
-        &self.state
-    }
-
-    pub fn set_state(&mut self, state: T) {
-        self.state = state
-    }
-
-    pub fn changed(&self, state: &T) -> bool {
-        self.state != *state
-    }
-
-    pub fn note_change(&mut self, state: &T) -> bool {
+    #[inline] fn note_change(&mut self, state: &Self) -> bool {
         if self.changed(state) {
-            self.set_state(state.clone());
+            *self = state.clone();
             true
         }
         else { false }
     }
 }
+
+impl<T: PartialEq + Clone> DetectChanges for T {}
 
 
 // once extension
@@ -42,24 +26,40 @@ pub trait ButOnce {
 }
 
 impl ButOnce for Once {
-    fn call_but_once(&self, func: impl FnOnce()) {
+    #[inline] fn call_but_once(&self, func: impl FnOnce()) {
         if self.is_completed() { func(); }
         else { self.call_once(|| {}); }
     }
 }
 
 
-// take extension for bool
-pub trait Take {
-    fn take(&mut self) -> Self;
+// flip boolean extension
+pub trait BoolFlip {
+    fn set(&mut self) -> bool;
+    fn take(&mut self) -> bool;
+    fn flip(&mut self) -> bool;
 }
 
-impl Take for bool {
-    fn take(&mut self) -> Self {
+impl BoolFlip for bool {
+
+    #[inline] fn set(&mut self) -> bool {
+        if *self == false {
+            *self = true;
+            true
+        }
+        else { false }
+    }
+
+    #[inline] fn take(&mut self) -> bool {
         if *self == true {
             *self = false;
             true
         }
         else { false }
+    }
+
+    #[inline] fn flip(&mut self) -> bool {
+        *self = !*self;
+        *self
     }
 }

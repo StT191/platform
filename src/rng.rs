@@ -6,7 +6,7 @@ use rand::rand_core::utils::fill_bytes_via_next_word;
 pub use rand::*;
 pub use rapidrand::RapidRng;
 
-pub type Res<T> = Result<T, !>;
+type Res<T> = Result<T, !>;
 
 
 // best effort for the simplest source of entropy on every platform

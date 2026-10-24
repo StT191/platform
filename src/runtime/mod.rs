@@ -1,6 +1,6 @@
 
 use std::{fmt::Debug, marker::Sync, hash::Hash};
-use winit::{window::WindowId, event::*, event_loop::*, application::ApplicationHandler};
+use winit::{window::*, event::*, event_loop::*, error::*, application::*};
 use crate::*;
 
 // mods
@@ -118,11 +118,14 @@ pub trait Runtime: 'static {
     event: RuntimeEvent<Self::Futures, Self::UserEvent, Self::TimeoutId>,
   );
 
-  fn run(self, event_loop: RuntimeEventLoop<Self::FutureId, Self::UserEvent>) where Self: Sized {
-    RuntimeMount::new(event_loop.create_proxy(), self).run(event_loop);
+  fn run(self, event_loop: RuntimeEventLoop<Self::FutureId, Self::UserEvent>) -> Result<(), EventLoopError>
+    where Self: Sized
+  {
+    RuntimeMount::new(event_loop.create_proxy(), self).run(event_loop)
   }
 
-  fn start(self) where Self: Sized { self.run(event_loop()) }
+  #[cfg(not(target_os="android"))]
+  fn start(self) -> Result<(), EventLoopError> where Self: Sized { self.run(event_loop()) }
 }
 
 
@@ -137,22 +140,28 @@ impl<R: Runtime> RuntimeMount<R> {
     Self { ctx: RuntimeCtx::new(event_loop_proxy), runtime }
   }
 
-  pub fn run(self, event_loop: RuntimeEventLoop<R::FutureId, R::UserEvent>) {
+  pub fn run(self, event_loop: RuntimeEventLoop<R::FutureId, R::UserEvent>) -> Result<(), EventLoopError> {
+
+    log::debug!("starting event_loop");
 
     #[cfg(not(target_family="wasm"))] {
       let mut runtime = self;
-      event_loop.run_app(&mut runtime).unwrap();
+      event_loop.run_app(&mut runtime)?;
+      log::debug!("event_loop returned");
     }
 
     #[cfg(target_family="wasm")] {
       use winit::platform::web::EventLoopExtWebSys;
       event_loop.spawn_app(self);
     }
+
+    Ok(())
   }
 
-  pub fn start(runtime: R) {
+  #[cfg(not(target_os="android"))]
+  pub fn start(runtime: R) -> Result<(), EventLoopError> {
     let event_loop = event_loop();
-    Self::new(event_loop.create_proxy(), runtime).run(event_loop);
+    Self::new(event_loop.create_proxy(), runtime).run(event_loop)
   }
 
   #[inline(never)]
