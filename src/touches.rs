@@ -75,7 +75,7 @@ impl TouchExt for () {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Touches<
     T: TouchExt + 'static = (),
-    const SHRINK_TO: usize = {usize::MAX},
+    const SHRINK_TO: usize = 16,
     const MAX: usize = {usize::MAX},
 > {
     pub vec: Vec<TouchRegister<T>>,

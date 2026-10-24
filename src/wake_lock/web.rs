@@ -36,6 +36,7 @@ impl WakeLock {
         js_sys::futures::spawn_local(async move {
             if let Ok(res) = JsFuture::from(promise).await {
                 lock.replace(Some(res));
+                log::trace!("WakeLock requested");
             }
         });
 
@@ -46,6 +47,7 @@ impl WakeLock {
 
         if let Some(lock) = self.lock.borrow().as_ref() {
             let _res = lock.release();
+            log::trace!("WakeLock released");
         }
 
         self.lock.replace(None);

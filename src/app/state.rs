@@ -11,9 +11,9 @@ use crate::time::*;
 
 pub(super) struct AppState<App: AppHandler> {
   #[cfg(feature = "conflate_resizes")] resized: Option<PhysicalSize<u32>>,
-  #[cfg(feature = "frame_pacing")] redraw_requested: bool,
   #[cfg(feature = "auto_wake_lock")] wake_lock: Option<WakeLock>,
-  #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges<bool>,
+  #[cfg(feature = "auto_wake_lock")] auto_wake_lock: bool,
+  #[cfg(feature = "auto_wake_lock")] occluded: bool,
   window_id: WindowId,
   pub(super) app_ctx: AppCtx<App::UserEvent>,
   app: App,
@@ -24,9 +24,14 @@ impl<App: AppHandler> AppState<App> {
   pub fn new(app_ctx: AppCtx<App::UserEvent>, app: App) -> Self {
     Self {
       #[cfg(feature = "conflate_resizes")] resized: None,
-      #[cfg(feature = "frame_pacing")] redraw_requested: false,
-      #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new().map_err(|m| log::warn!("{m:?}")).ok(),
-      #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges::new(false),
+
+      #[cfg(feature = "auto_wake_lock")]
+      wake_lock: WakeLock::new(
+        #[cfg(target_os = "android")] app_ctx.android_app().clone()
+      ).map_err(|m| log::warn!("{m:?}")).ok(),
+
+      #[cfg(feature = "auto_wake_lock")] auto_wake_lock: false,
+      #[cfg(feature = "auto_wake_lock")] occluded: false,
 
       window_id: app_ctx.window.id(),
       app_ctx, app,
@@ -39,13 +44,43 @@ impl<App: AppHandler> AppState<App> {
     let app_ctx = &mut self.app_ctx;
 
     #[cfg(feature = "auto_wake_lock")]
-    let mut focus_change: Option<bool> = None;
+    let mut focus_changed = false;
 
     match event {
 
-      AppEvent::Resumed => self.app.event(app_ctx, Event::Resumed),
+      AppEvent::Resumed => {
 
-      AppEvent::Suspended => self.app.event(app_ctx, Event::Suspended),
+        #[cfg(target_os = "android")] {
+          app_ctx.android_state.suspended = false;
+        }
+
+        self.app.event(app_ctx, Event::Resumed);
+
+        #[cfg(target_os = "android")] {
+
+          let ((size, scale), state) = (
+            app_ctx.android_state.window_changed(&app_ctx.window),
+            app_ctx.android_state.state_changed(),
+          );
+
+          if size || scale || state {
+            self.app.event(app_ctx, Event::WindowEvent(WindowEvent::Resized(app_ctx.android_state.window_size)));
+          }
+
+          app_ctx.request_redraw();
+        }
+      },
+
+      AppEvent::Suspended => {
+
+        self.app.event(app_ctx, Event::Suspended);
+
+        #[cfg(target_os = "android")] {
+          app_ctx.android_state.suspended = true;
+        }
+      },
+
+      AppEvent::Exit => self.app.event(app_ctx, Event::Exit),
 
       #[cfg(feature = "futures")]
       AppEvent::FutureReady {id, output: ()} => {
@@ -65,9 +100,10 @@ impl<App: AppHandler> AppState<App> {
 
       #[cfg(feature = "frame_pacing")]
       AppEvent::Timeout {id: AppTimeoutId::FrameRequest(id), instant} if id == self.window_id => {
-        app_ctx.frame_time = instant;
-        app_ctx.window.request_redraw();
-        self.redraw_requested = true;
+        app_ctx.frame_scheduled = false;
+        app_ctx.request_redraw();
+        app_ctx.frame_time = instant; // set to requested for best pacing
+        app_ctx.frame_timeout = Some(instant);
         return;
       },
 
@@ -92,45 +128,45 @@ impl<App: AppHandler> AppState<App> {
 
       AppEvent::WindowEvent {window_id: id, event: window_event} if id == self.window_id => {
 
+        #[cfg(target_os = "android")]
+        if app_ctx.android_state.inter_window_event(&window_event) {
+          return; // wait for other events
+        }
+
         // before user handler
         match &window_event {
 
-          #[cfg(feature = "frame_pacing")]
           WindowEvent::RedrawRequested => {
 
             #[cfg(feature = "conflate_resizes")]
             if let Some(size) = self.resized.take() {
-              let frame_timeout = app_ctx.frame_timeout; // preserve frame_timeout
-
-              self.app.event(app_ctx, Event::WindowEvent(WindowEvent::Resized(size)));
-
-              app_ctx.frame_timeout = frame_timeout;
-              app_ctx.schedule_frame = false;
-            }
-
-            if app_ctx.frame_timeout.is_none() || !self.redraw_requested {
-              // no frame was requested or frame_request-timeout is still in progress
-              app_ctx.frame_time = Instant::now();
-            }
-
-            self.redraw_requested = false;
-            app_ctx.frame_timeout = None;
-          },
-
-          #[cfg(all(not(feature = "frame_pacing"), feature = "conflate_resizes"))]
-          WindowEvent::RedrawRequested => {
-            if let Some(size) = self.resized.take() {
               self.app.event(app_ctx, Event::WindowEvent(WindowEvent::Resized(size)));
             }
+
+            #[cfg(feature = "frame_pacing")] {
+
+              if !app_ctx.redraw_requested {
+                app_ctx.frame_time = Instant::now();
+              }
+
+              app_ctx.cancel_frame(); // only if another one was scheduled
+            }
+
+            app_ctx.redraw_requested = false;
           },
 
-          #[cfg(feature = "conflate_resizes")]
+          #[allow(unused)]
           WindowEvent::Resized(size) => {
-            if self.resized.is_none() {
-              app_ctx.window.request_redraw();
+            app_ctx.request_redraw();
+
+            #[cfg(feature = "conflate_resizes")] {
+              self.resized = Some(*size);
+              return;
             }
-            self.resized = Some(*size);
-            return; // return early without event handling here
+          },
+
+          WindowEvent::ScaleFactorChanged {..} => {
+            app_ctx.request_redraw();
           },
 
           #[cfg(feature = "frame_pacing")]
@@ -143,7 +179,15 @@ impl<App: AppHandler> AppState<App> {
           },
 
           #[cfg(feature = "auto_wake_lock")]
-          WindowEvent::Focused(focus) => { focus_change = Some(*focus) },
+          WindowEvent::Focused(_) => {
+            focus_changed = true;
+          },
+
+          #[cfg(feature = "auto_wake_lock")]
+          WindowEvent::Occluded(occluded) => { // occluded is more reliable on web
+            self.occluded = *occluded;
+            focus_changed = true;
+          },
 
           _ => {},
         }
@@ -156,45 +200,40 @@ impl<App: AppHandler> AppState<App> {
     }
 
 
+    #[cfg(feature = "auto_wake_lock")]
+    if focus_changed || self.auto_wake_lock.note_change(&app_ctx.auto_wake_lock) {
+
+      let visible = app_ctx.window.has_focus() && !self.occluded;
+
+      if !visible || !app_ctx.auto_wake_lock {
+        // release wake_lock
+        self.wake_lock.as_mut().map(|lock| lock.release().map_err(|m| log::warn!("{m:?}")));
+      }
+      else if app_ctx.auto_wake_lock && visible {
+        // request wake_lock
+        self.wake_lock.as_mut().map(|lock| lock.request().map_err(|m| log::warn!("{m:?}")));
+      }
+
+      self.auto_wake_lock = app_ctx.auto_wake_lock;
+    }
+
+
     #[cfg(feature = "frame_pacing")]
     if app_ctx.schedule_frame.take() {
 
       let instant = app_ctx.frame_timeout.expect("frame_timeout needs to be set when scheduling a frame");
-      let now = Instant::now();
 
-      if instant > now {
+      if instant > Instant::now() {
         let _ = app_ctx.timer.borrow_mut().set_timeout_earlier(
           AppTimeoutId::FrameRequest(self.window_id),
-          instant
+          instant,
         );
+        app_ctx.frame_scheduled = true;
       } else {
-        app_ctx.frame_time = now;
-        app_ctx.window.request_redraw();
-        self.redraw_requested = true;
+        app_ctx.request_redraw();
       }
     }
 
-    #[cfg(feature = "auto_wake_lock")]
-    if let Some(focus) = focus_change {
-      if !focus {
-        // release wake_lock
-        self.wake_lock.as_mut().map(|lock| lock.release().map_err(|m| log::warn!("{m:?}")));
-      }
-      else if app_ctx.auto_wake_lock {
-        // request wake_lock
-        self.wake_lock.as_mut().map(|lock| lock.request().map_err(|m| log::warn!("{m:?}")));
-      }
-      self.auto_wake_lock.set_state(app_ctx.auto_wake_lock);
-    }
-    else if self.auto_wake_lock.note_change(&app_ctx.auto_wake_lock) {
-      if app_ctx.auto_wake_lock && app_ctx.window.has_focus() {
-        // request wake_lock
-        self.wake_lock.as_mut().map(|lock| lock.request().map_err(|m| log::warn!("{m:?}")));
-      } else {
-        // release wake_lock
-        self.wake_lock.as_mut().map(|lock| lock.release().map_err(|m| log::warn!("{m:?}")));
-      }
-    }
   }
 
 }
