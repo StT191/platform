@@ -15,6 +15,7 @@ enum MountState<App: AppHandler> {
   Window {
     event_queue: Vec<AppEvent<App::UserEvent>>,
     window: Window,
+    set_fullscreen: bool,
     init_data: App::InitData,
   },
   Mounting {
@@ -77,10 +78,12 @@ impl<App: AppHandler> Runtime for AppMount<App> {
 
             let MountState::Init {event_queue, window_attributes, init_data} = self.take() else { unreachable!() };
 
+            let set_fullscreen = window_attributes.fullscreen == Some(DEFAULT_FULLSCREEN);
+
             let window = crate::window(event_loop, window_attributes);
             mount_window(&window);
 
-            self.state = MountState::Window {window, event_queue, init_data};
+            self.state = MountState::Window {event_queue, window, set_fullscreen, init_data};
           },
 
           _ => event_queue.push(event),
@@ -93,17 +96,33 @@ impl<App: AppHandler> Runtime for AppMount<App> {
 
             event_queue.push(event);
 
-            let MountState::Window {event_queue, window, init_data} = self.take() else { unreachable!() };
+            let MountState::Window {event_queue, window, set_fullscreen, init_data} = self.take() else { unreachable!() };
 
             let (sender, receiver) = sync_channel(1);
             let futures = ctx.futures.clone();
             let timer = ctx.timer.clone();
             let event_dispatcher = ctx.event_dispatcher.clone();
 
+            #[cfg(target_os = "android")]
+            let android_app = {
+              use crate::android_util::*;
+              event_loop.android_app().clone()
+            };
+
             let future_id = ctx.futures.spawn(Box::pin(async move {
-              let mut app_ctx = AppCtx::new(futures, timer, event_dispatcher, window);
+
+              let mut app_ctx = AppCtx::new(
+                futures, timer, event_dispatcher, window,
+                #[cfg(target_os = "android")] android_app,
+              );
+
+              if set_fullscreen {
+                app_ctx.enable_fullscreen();
+              };
+
               let app = App::init(&mut app_ctx, init_data).await;
               let app_state = AppState::new(app_ctx, app);
+
               sender.send(app_state).unwrap();
             }));
 

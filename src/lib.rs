@@ -11,6 +11,9 @@ pub use pollster;
 #[cfg(all(feature="directories", not(target_family="wasm")))]
 pub use robius_directories as directories;
 
+#[cfg(target_os = "android")]
+pub mod android_util;
+
 // mods
 pub mod anyhow; // als re-exports the anyhow crate
 

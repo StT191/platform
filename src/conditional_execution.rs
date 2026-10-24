@@ -50,16 +50,23 @@ impl ButOnce for Once {
 
 
 // take extension for bool
-pub trait Take {
+pub trait BoolExt {
     fn take(&mut self) -> Self;
+    fn flip(&mut self) -> Self;
 }
 
-impl Take for bool {
+impl BoolExt for bool {
+
     fn take(&mut self) -> Self {
         if *self == true {
             *self = false;
             true
         }
         else { false }
+    }
+
+    fn flip(&mut self) -> Self {
+        *self = !*self;
+        *self
     }
 }

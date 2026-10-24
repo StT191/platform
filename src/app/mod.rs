@@ -1,6 +1,7 @@
 
 use std::{fmt::Debug, future::Future};
-use winit::{window::{WindowId, WindowAttributes}, event::*};
+#[allow(unused_imports)]
+use winit::{window::{WindowId, WindowAttributes, Fullscreen}, event::*};
 use crate::*;
 
 // mods
@@ -13,6 +14,9 @@ pub use ctx::*;
 use state::*;
 pub use mount::*;
 pub use futures::*;
+
+
+pub const DEFAULT_FULLSCREEN: Fullscreen = Fullscreen::Borderless(None);
 
 
 #[cfg(all(feature = "web_clipboard", target_family="wasm", web_sys_unstable_apis))]
@@ -125,10 +129,23 @@ macro_rules! main_app {
     $crate::main_app!{$log_level, $window_attributes, $app_type, ()}
   };
   ($log_level:expr, $window_attributes:expr, $app_type:ty, $init_data:expr $(,)?) => {
-    fn main() {
+
+    #[cfg(not(target_os="android"))]
+    pub fn main() {
       $crate::init($log_level);
       $crate::AppMount::<$app_type>::new($window_attributes, $init_data).start();
     }
+
+    #[cfg(target_os="android")]
+    pub fn main() {}
+
+    #[cfg(target_os="android")]
+    #[unsafe(no_mangle)]
+    pub fn android_main(app: $crate::winit::platform::android::activity::AndroidApp) {
+      $crate::init($log_level);
+      $crate::AppMount::<$app_type>::new($window_attributes, $init_data).run(event_loop(app));
+    }
+
   };
 }
 

@@ -19,8 +19,20 @@ pub fn init(log_filter: impl Into<LogFilter>) {
 }
 
 
+#[cfg(not(target_os="android"))]
 pub fn event_loop<T>() -> EventLoop<T> {
     EventLoop::with_user_event().build().unwrap()
+}
+
+
+#[cfg(target_os="android")]
+pub fn event_loop<T>(app: winit::platform::android::activity::AndroidApp) -> EventLoop<T> {
+    use winit::platform::android::EventLoopBuilderExtAndroid;
+
+    let mut event_loop_builder = EventLoop::with_user_event();
+    event_loop_builder.with_android_app(app);
+
+    event_loop_builder.build().unwrap()
 }
 
 

@@ -10,43 +10,57 @@ pub struct LogFilter {
 
     #[cfg(target_family="wasm")]
     pub module_filter: Option<fn (&str) -> Option<LogLevelFilter>>,
+
+    pub tag: Option<&'static str>,
 }
 
 impl From<LogLevel> for LogFilter {
     fn from(default_level: LogLevel) -> Self {
-        Self { default_level, module_filter: None }
+        Self { default_level, module_filter: None, tag: None }
     }
 }
 
 
 #[macro_export]
 macro_rules! log_filter {
-    ($level:ident) => (LogLevel::$level);
-    ($level:ident, $($module:literal => $module_level:ident),+) => {{
+    ($level:ident) => ($crate::LogLevel::$level);
+    ($tag:expr, $level:ident) => {{
+        let mut log_filter = $crate::LogFilter::from($crate::LogLevel::$level);
+        log_filter.tag = Some($tag);
+        log_filter
+    }};
+    ($level:ident, $($module:expr => $module_level:ident),+) => {{
 
-        #[cfg(not(target_family="wasm"))]
-        let log_filter = $crate::log_filter!(@array: $level, $($module => $module_level,)+);
+        let mut log_filter = $crate::LogFilter::from($crate::LogLevel::$level);
 
-        #[cfg(target_family="wasm")]
-        let log_filter = $crate::log_filter!(@fn: $level, $($module => $module_level,)+);
+        #[cfg(not(target_family="wasm"))] {
+            log_filter.module_filter = Some($crate::log_filter!(@mf_array $($module => $module_level,)+));
+        }
+
+        #[cfg(target_family="wasm")] {
+            log_filter.module_filter = Some($crate::log_filter!(@mf_fn $($module => $module_level,)+));
+        }
 
         log_filter
     }};
-    (@array: $level:ident, $($module:literal => $module_level:ident,)+) => (LogFilter {
-        default_level: $crate::LogLevel::$level,
-        module_filter: Some(&[
+    ($tag:expr, $level:ident, $($module:expr => $module_level:ident),+) => {{
+        let mut log_filter = $crate::log_filter!($level, $($module => $module_level),+);
+        log_filter.tag = Some($tag);
+        log_filter
+    }};
+    (@mf_array $($module:expr => $module_level:ident,)+) => (
+        &[
             $( ($module, $crate::LogLevelFilter::$module_level) ,)+
-        ]),
-    });
-    (@fn: $level:ident, $($module:literal => $module_level:ident,)+) => (LogFilter {
-        default_level: $crate::LogLevel::$level,
-        module_filter: Some(|module: &str| -> Option<$crate::LogLevelFilter> {
+        ]
+    );
+    (@mf_fn $($module:expr => $module_level:ident,)+) => (
+        |module: &str| -> Option<$crate::LogLevelFilter> {
             match module {
                 $( $module => Some($crate::LogLevelFilter::$module_level), )+
                 _ => None,
             }
-        }),
-    });
+        }
+    );
 }
 
 
@@ -86,7 +100,7 @@ impl LogFilter {
 
         let level_filter = self.default_level.to_level_filter();
 
-        #[cfg(not(target_family="wasm"))] {
+        #[cfg(not(any(target_family="wasm", target_os="android")))] {
 
             let mut logger = simple_logger::SimpleLogger::new().with_level(level_filter);
 
@@ -99,7 +113,6 @@ impl LogFilter {
             logger.init()?;
         }
 
-
         #[cfg(target_family="wasm")] {
 
             if let Some(filter_fn) = self.module_filter {
@@ -109,6 +122,28 @@ impl LogFilter {
             else {
                 console_log::init_with_level(self.default_level)?;
             }
+        }
+
+        #[cfg(target_os="android")] {
+
+            let mut config = android_logger::Config::default().with_max_level(level_filter);
+
+            if let Some(tag) = self.tag {
+                config = config.with_tag(tag);
+            }
+
+            if let Some(filters) = self.module_filter {
+
+                let mut builder = android_logger::FilterBuilder::new();
+
+                for (module, level) in filters {
+                    builder.filter_module(module, *level);
+                }
+
+                config = config.with_filter(builder.build());
+            }
+
+            android_logger::init_once(config);
         }
 
         Ok(())

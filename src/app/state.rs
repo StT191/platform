@@ -25,7 +25,11 @@ impl<App: AppHandler> AppState<App> {
     Self {
       #[cfg(feature = "conflate_resizes")] resized: None,
       #[cfg(feature = "frame_pacing")] redraw_requested: false,
-      #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new().map_err(|m| log::warn!("{m:?}")).ok(),
+
+      #[cfg(feature = "auto_wake_lock")] wake_lock: WakeLock::new(
+        #[cfg(target_os = "android")] &app_ctx.android_app
+      ).map_err(|m| log::warn!("{m:?}")).ok(),
+
       #[cfg(feature = "auto_wake_lock")] auto_wake_lock: DetectChanges::new(false),
 
       window_id: app_ctx.window.id(),

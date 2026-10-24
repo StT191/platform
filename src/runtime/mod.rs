@@ -122,6 +122,7 @@ pub trait Runtime: 'static {
     RuntimeMount::new(event_loop.create_proxy(), self).run(event_loop);
   }
 
+  #[cfg(not(target_os="android"))]
   fn start(self) where Self: Sized { self.run(event_loop()) }
 }
 
@@ -150,6 +151,7 @@ impl<R: Runtime> RuntimeMount<R> {
     }
   }
 
+  #[cfg(not(target_os="android"))]
   pub fn start(runtime: R) {
     let event_loop = event_loop();
     Self::new(event_loop.create_proxy(), runtime).run(event_loop);
