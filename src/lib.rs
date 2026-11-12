@@ -1,4 +1,4 @@
-#![feature(never_type, associated_type_defaults)]
+#![feature(associated_type_defaults)]
 
 // re-exports
 pub use winit;
@@ -46,7 +46,7 @@ pub mod storage;
 #[cfg(feature="rng")]
 pub mod rng;
 
-#[cfg(any(feature="rapidhash", feature="rng"))]
+#[cfg(feature="rapidhash")]
 pub mod rapidhash {
     pub use ::rapidhash::{*, fast::*};
 }

@@ -1,8 +1,7 @@
 
-use winit::{window::{WindowAttributes, Window}, event::*, event_loop::ActiveEventLoop};
+use winit::{window::{WindowAttributes, Window}, event_loop::ActiveEventLoop};
 use std::{mem::replace, sync::mpsc::{Receiver, sync_channel}};
 
-use crate::*;
 use super::*;
 
 #[allow(clippy::large_enum_variant)]

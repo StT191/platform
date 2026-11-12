@@ -1,6 +1,7 @@
 
 // detect changes
 #[derive(Debug, Default, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
 pub struct DetectChanges<T: PartialEq + Clone> {
     state: T,
 }
@@ -44,5 +45,21 @@ impl ButOnce for Once {
     fn call_but_once(&self, func: impl FnOnce()) {
         if self.is_completed() { func(); }
         else { self.call_once(|| {}); }
+    }
+}
+
+
+// take extension for bool
+pub trait Take {
+    fn take(&mut self) -> Self;
+}
+
+impl Take for bool {
+    fn take(&mut self) -> Self {
+        if *self == true {
+            *self = false;
+            true
+        }
+        else { false }
     }
 }
